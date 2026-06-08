@@ -1,0 +1,160 @@
+version: '3.9'
+
+services:
+  # ─── Infrastructure ──────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: vaultx-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: vaultx
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: vaultx-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── OWASP ZAP ───────────────────────────────────────────────────────────────
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    container_name: vaultx-zap
+    restart: unless-stopped
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.key=vaultx-zap-key -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+    ports:
+      - "8080:8080"
+
+  # ─── Backend API ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vaultx-backend
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # For Docker-in-Docker tool execution
+      - reports_vol:/tmp/vaultx_reports
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ZAP_BASE_URL: http://zap:8080
+
+  # ─── Celery Workers ───────────────────────────────────────────────────────────
+  celery-recon:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vaultx-celery-recon
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker -Q recon,default -c 2 --loglevel=info
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+      - mongodb
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+
+  celery-scanner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vaultx-celery-scanner
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker -Q scanner -c 1 --loglevel=info
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+      - mongodb
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ZAP_BASE_URL: http://zap:8080
+
+  celery-ai:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vaultx-celery-ai
+    restart: unless-stopped
+    command: celery -A workers.celery_app worker -Q ai,exploit -c 1 --loglevel=info
+    env_file: .env
+    volumes:
+      - reports_vol:/tmp/vaultx_reports
+    depends_on:
+      - redis
+      - mongodb
+    environment:
+      MONGODB_URL: mongodb://mongodb:27017
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+
+  # ─── Celery Flower (monitoring) ──────────────────────────────────────────────
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vaultx-flower
+    restart: unless-stopped
+    command: celery -A workers.celery_app flower --port=5555
+    env_file: .env
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+
+  # ─── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vaultx-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:
+  redis_data:
+  reports_vol:
