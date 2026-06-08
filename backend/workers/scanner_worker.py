@@ -23,15 +23,19 @@ from tools.dalfox_tool import DalfoxTool
 from tools.zap_tool import ZAPTool
 
 
+import copy
+
 def _store_raw_findings(db, scan_id: str, tool: str, findings: list):
     """Store raw tool findings as pre-processed finding documents."""
     if not findings:
         return
-    for f in findings:
+    # Deep copy to prevent PyMongo from mutating the original dictionaries with ObjectId
+    copied_findings = copy.deepcopy(findings)
+    for f in copied_findings:
         f["scan_id"] = scan_id
         f["tool_source"] = tool
         f["raw"] = True
-    db["raw_findings"].insert_many(findings)
+    db["raw_findings"].insert_many(copied_findings)
 
 
 @celery_app.task(name="workers.scanner_worker.run_scanner", bind=True)
