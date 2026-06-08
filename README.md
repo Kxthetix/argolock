@@ -1,4 +1,4 @@
-# VaultX — AI-Powered VAPT Platform
+# vaultX — AI-Powered VAPT Platform
 
 > **Production-ready Vulnerability Assessment & Penetration Testing platform powered by 4 AI agents**
 
@@ -9,7 +9,7 @@
 
 ---
 
-## 🚀 What is VaultX?
+## 🚀 What is vaultX?
 
 VaultX is a fully automated security testing platform that performs real vulnerability assessments:
 
@@ -155,4 +155,4 @@ This tool is for **authorized security testing only**. Only scan systems you own
 
 ---
 
-*Built with ❤️ by VaultX — AI-Powered Security*
+*Built with ❤️ by vaultX — AI-Powered Security*
