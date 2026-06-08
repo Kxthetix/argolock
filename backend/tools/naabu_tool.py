@@ -33,6 +33,8 @@ class NaabuTool(BaseTool):
             "-timeout", "5",        # ms per port connect attempt
             "-no-color",
             "-exclude-cdn",         # Skip full scan for CDN IPs
+            "-Pn",                  # Skip host discovery (avoids privileged packet capture hangs)
+            "-s", "c",              # Force connect scan mode
         ]
 
     # ── Python fallback ───────────────────────────────────────────────────────
