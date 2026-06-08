@@ -80,7 +80,8 @@ def run_ai_analysis(self, scan_results: dict, scan_id: str):
     # Save findings to DB
     if remediated_findings:
         finding_dicts = [f if isinstance(f, dict) else f.model_dump() for f in remediated_findings]
-        db["findings"].insert_many(finding_dicts)
+        import copy
+        db["findings"].insert_many(copy.deepcopy(finding_dicts))
 
         # Update counts on scan
         counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
