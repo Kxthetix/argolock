@@ -55,7 +55,7 @@ export function ScanDetailPage() {
     const ws = new ScanWebSocket(id);
     ws.connect();
 
-    ws.on('log', (msg) => {
+    ws.on('log', (msg: any) => {
       setLogs(prev => [...prev.slice(-500), {
         time: new Date(),
         level: msg.level || 'info',

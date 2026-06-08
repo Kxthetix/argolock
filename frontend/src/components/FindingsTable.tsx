@@ -133,7 +133,7 @@ function FindingDetail({ finding }: { finding: Finding }) {
         {finding.poc?.reproduction_steps && finding.poc.reproduction_steps.length > 0 && (
           <Section title="Reproduction Steps">
             <ol style={{ paddingLeft: 20, color: 'var(--text-secondary)', fontSize: 13 }}>
-              {finding.poc.reproduction_steps.map((step, i) => (
+              {finding.poc.reproduction_steps.map((step: string, i: number) => (
                 <li key={i} style={{ marginBottom: 4 }}>{step}</li>
               ))}
             </ol>
@@ -143,7 +143,7 @@ function FindingDetail({ finding }: { finding: Finding }) {
         {finding.cve_ids && finding.cve_ids.length > 0 && (
           <Section title="CVE References">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {finding.cve_ids.map(cve => (
+              {finding.cve_ids.map((cve: string) => (
                 <a
                   key={cve}
                   href={`https://nvd.nist.gov/vuln/detail/${cve}`}
@@ -172,7 +172,7 @@ function FindingDetail({ finding }: { finding: Finding }) {
           {finding.remediation.fix_steps && finding.remediation.fix_steps.length > 0 && (
             <Section title="Remediation Steps">
               <ol style={{ paddingLeft: 20, color: 'var(--text-secondary)', fontSize: 13 }}>
-                {finding.remediation.fix_steps.map((step, i) => (
+                {finding.remediation.fix_steps.map((step: string, i: number) => (
                   <li key={i} style={{ marginBottom: 6 }}>{step}</li>
                 ))}
               </ol>
