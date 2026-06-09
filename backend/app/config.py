@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "ArgoLock"
     environment: str = "development"
     secret_key: str = "change-me-in-production"
-    cors_origins: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: List[str] = ["*"]
 
     # ── MongoDB ───────────────────────────────────────────────────────────────
     mongodb_url: str = "mongodb://mongodb:27017"
