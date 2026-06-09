@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create reports directory
-RUN mkdir -p /tmp/vaultx_reports
+RUN mkdir -p /tmp/argolock_reports
 
 EXPOSE 8000
 
