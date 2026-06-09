@@ -1,4 +1,4 @@
-# VaultX Usage Guide
+# ArgoLock Usage Guide
 
 ## Running Your First Scan
 

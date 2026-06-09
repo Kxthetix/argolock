@@ -1,4 +1,4 @@
-# VaultX Setup Guide
+# ArgoLock Setup Guide
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@
 
 ### 1. Clone / Copy the project
 ```
-vaultx/
+argolock/
 ├── backend/
 ├── frontend/
 ├── docker-compose.yml
@@ -50,7 +50,7 @@ This starts:
 docker-compose logs -f backend
 ```
 
-Look for: `🚀 VaultX backend starting up...`
+Look for: `🚀 ArgoLock backend starting up...`
 
 ### 5. Open dashboard
 Navigate to **http://localhost:3000**

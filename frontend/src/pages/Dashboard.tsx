@@ -65,7 +65,7 @@ export function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 800 }}>Security Dashboard</h1>
-          <p className="text-secondary mt-1">AI-powered vulnerability assessment overview</p>
+          <p className="text-secondary mt-1">ArgoLock AI-powered vulnerability assessment overview</p>
         </div>
         <Link to="/scans" className="btn btn-primary">
           <Plus size={16} />

@@ -131,7 +131,7 @@ def run_ai_analysis(self, scan_results: dict, scan_id: str):
             "completed_at": datetime.utcnow().isoformat(),
         }}
     )
-    _log(scan_id, "success", "🎉 VaultX scan complete! View your report in the dashboard.")
+    _log(scan_id, "success", "🎉 ArgoLock scan complete! View your report in the dashboard.")
 
     import redis, json
     from app.config import settings

@@ -72,7 +72,7 @@ class ReportAgent(BaseAgent):
         # Save JSON report
         from app.config import settings
         os.makedirs(settings.reports_dir, exist_ok=True)
-        json_path = os.path.join(settings.reports_dir, f"vaultx_report_{scan_id}.json")
+        json_path = os.path.join(settings.reports_dir, f"argolock_report_{scan_id}.json")
         with open(json_path, "w") as f:
             json.dump(report_data, f, indent=2, default=str)
 

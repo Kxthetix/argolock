@@ -7,7 +7,7 @@ async def test_health_check(client):
     """Verify that the health check endpoint returns 200 and correct payload."""
     response = await client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "VaultX Backend"}
+    assert response.json() == {"status": "ok", "service": "ArgoLock Backend"}
 
 
 @pytest.mark.asyncio(scope="session")

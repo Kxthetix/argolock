@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from app.config import settings
 
 # Force test database configuration
-settings.mongodb_db = "vaultx_test"
+settings.mongodb_db = "argolock_test"
 
 from app.database import connect_db, disconnect_db, get_db
 from app.main import app
@@ -46,7 +46,7 @@ async def clean_test_db(event_loop):
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
         client = AsyncIOMotorClient(settings.mongodb_url, serverSelectionTimeoutMS=3000)
-        await client.drop_database("vaultx_test")
+        await client.drop_database("argolock_test")
         client.close()
     except Exception:
         pass  # MongoDB not running — nothing to clean up

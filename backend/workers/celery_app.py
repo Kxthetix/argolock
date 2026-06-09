@@ -23,7 +23,7 @@ def run_async(coro):
         return loop.run_until_complete(coro)
 
 celery_app = Celery(
-    "vaultx",
+    "argolock",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
     include=[

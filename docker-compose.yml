@@ -4,12 +4,12 @@ services:
   # ─── Infrastructure ──────────────────────────────────────────────────────────
   mongodb:
     image: mongo:7
-    container_name: vaultx-mongodb
+    container_name: argolock-mongodb
     restart: unless-stopped
     volumes:
       - mongodb_data:/data/db
     environment:
-      MONGO_INITDB_DATABASE: vaultx
+      MONGO_INITDB_DATABASE: argolock
     ports:
       - "27017:27017"
     healthcheck:
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: vaultx-redis
+    container_name: argolock-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
@@ -36,9 +36,9 @@ services:
   # ─── OWASP ZAP ───────────────────────────────────────────────────────────────
   zap:
     image: ghcr.io/zaproxy/zaproxy:stable
-    container_name: vaultx-zap
+    container_name: argolock-zap
     restart: unless-stopped
-    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.key=vaultx-zap-key -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.key=argolock-zap-key -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
     ports:
       - "8080:8080"
 
@@ -47,12 +47,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: vaultx-backend
+    container_name: argolock-backend
     restart: unless-stopped
     env_file: .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock  # For Docker-in-Docker tool execution
-      - reports_vol:/tmp/vaultx_reports
+      - reports_vol:/tmp/argolock_reports
     ports:
       - "8000:8000"
     depends_on:
@@ -72,7 +72,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: vaultx-celery-recon
+    container_name: argolock-celery-recon
     restart: unless-stopped
     command: celery -A workers.celery_app worker -Q recon,default -c 2 --loglevel=info
     env_file: .env
@@ -91,7 +91,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: vaultx-celery-scanner
+    container_name: argolock-celery-scanner
     restart: unless-stopped
     command: celery -A workers.celery_app worker -Q scanner -c 1 --loglevel=info
     env_file: .env
@@ -111,12 +111,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: vaultx-celery-ai
+    container_name: argolock-celery-ai
     restart: unless-stopped
     command: celery -A workers.celery_app worker -Q ai,exploit -c 1 --loglevel=info
     env_file: .env
     volumes:
-      - reports_vol:/tmp/vaultx_reports
+      - reports_vol:/tmp/argolock_reports
     depends_on:
       - redis
       - mongodb
@@ -131,7 +131,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: vaultx-flower
+    container_name: argolock-flower
     restart: unless-stopped
     command: celery -A workers.celery_app flower --port=5555
     env_file: .env
@@ -147,7 +147,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: vaultx-frontend
+    container_name: argolock-frontend
     restart: unless-stopped
     ports:
       - "3000:80"

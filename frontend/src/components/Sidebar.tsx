@@ -16,7 +16,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <div className="logo-text">⚡ VaultX</div>
+        <div className="logo-text">🔒 ArgoLock</div>
         <div className="logo-tagline">AI-Powered VAPT Platform</div>
       </div>
 

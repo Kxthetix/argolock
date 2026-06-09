@@ -8,14 +8,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # ── Application ───────────────────────────────────────────────────────────
-    app_name: str = "VaultX"
+    app_name: str = "ArgoLock"
     environment: str = "development"
     secret_key: str = "change-me-in-production"
     cors_origins: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     # ── MongoDB ───────────────────────────────────────────────────────────────
     mongodb_url: str = "mongodb://mongodb:27017"
-    mongodb_db: str = "vaultx"
+    mongodb_db: str = "argolock"
 
     # ── Redis / Celery ────────────────────────────────────────────────────────
     redis_url: str = "redis://redis:6379/0"
@@ -40,10 +40,10 @@ class Settings(BaseSettings):
     sqlmap_docker_image: str = "paoloo/sqlmap:latest"
     subfinder_docker_image: str = "projectdiscovery/subfinder:latest"
     zap_base_url: str = "http://zap:8080"
-    zap_api_key: str = "vaultx-zap-key"
+    zap_api_key: str = "argolock-zap-key"
 
     # ── Reports ───────────────────────────────────────────────────────────────
-    reports_dir: str = "/tmp/vaultx_reports"
+    reports_dir: str = "/tmp/argolock_reports"
 
     # ── Safety ────────────────────────────────────────────────────────────────
     safe_mode: bool = True

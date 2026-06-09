@@ -17,15 +17,15 @@ from app.services.websocket_manager import ws_manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
-    logger.info("🚀 VaultX backend starting up...")
+    logger.info("🚀 ArgoLock backend starting up...")
     await connect_db()
     yield
-    logger.info("🛑 VaultX backend shutting down...")
+    logger.info("🛑 ArgoLock backend shutting down...")
     await disconnect_db()
 
 
 app = FastAPI(
-    title="VaultX VAPT Platform",
+    title="ArgoLock VAPT Platform",
     description="AI-powered Vulnerability Assessment & Penetration Testing platform",
     version="1.0.0",
     docs_url="/api/docs",

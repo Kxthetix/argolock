@@ -12,7 +12,7 @@ from ai_providers.base_provider import BaseProvider
 
 
 class BaseAgent:
-    """Base class for all VaultX AI agents."""
+    """Base class for all ArgoLock AI agents."""
 
     prompt_file: str = ""
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>VaultX Security Report — {{ target }}</title>
+  <title>ArgoLock Security Report — {{ target }}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -154,7 +154,7 @@
 
 <!-- ─── Cover Page ─────────────────────────────────────────────── -->
 <div class="cover">
-  <div class="logo">⚡ VaultX</div>
+  <div class="logo">⚡ ArgoLock</div>
   <h1>Security Assessment Report</h1>
   <p class="subtitle">AI-Powered Vulnerability Assessment & Penetration Testing</p>
 
@@ -290,7 +290,7 @@
 </div>
 
 {% if loop.index0 % 2 == 1 or loop.last %}
-  <div class="footer">VaultX VAPT Platform — Confidential — {{ generated_at_formatted }}</div>
+  <div class="footer">ArgoLock VAPT Platform — Confidential — {{ generated_at_formatted }}</div>
 </div>
 {% endif %}
 {% endfor %}

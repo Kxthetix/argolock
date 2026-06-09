@@ -35,7 +35,7 @@ async def download_pdf(scan_id: str):
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
-        filename=f"vaultx_report_{scan_id}.pdf",
+        filename=f"argolock_report_{scan_id}.pdf",
     )
 
 
@@ -53,5 +53,5 @@ async def download_json(scan_id: str):
     return FileResponse(
         path=json_path,
         media_type="application/json",
-        filename=f"vaultx_report_{scan_id}.json",
+        filename=f"argolock_report_{scan_id}.json",
     )

@@ -40,7 +40,7 @@ async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
 
     # Convert to PDF
     os.makedirs(settings.reports_dir, exist_ok=True)
-    pdf_path = os.path.join(settings.reports_dir, f"vaultx_report_{scan_id}.pdf")
+    pdf_path = os.path.join(settings.reports_dir, f"argolock_report_{scan_id}.pdf")
 
     pdf = weasyprint.HTML(string=html_content).write_pdf()
     with open(pdf_path, "wb") as f:
