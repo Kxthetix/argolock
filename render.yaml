@@ -45,7 +45,7 @@ services:
     dockerContext: backend
     dockerfilePath: Dockerfile
     plan: free
-    startCommand: celery -A workers.celery_app worker --loglevel=info
+    dockerCommand: celery -A workers.celery_app worker --loglevel=info
     envVars:
       - key: MONGODB_URL
         sync: false # Same MongoDB Atlas connection string
