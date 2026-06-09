@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     fonts-liberation \
     redis-server \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
