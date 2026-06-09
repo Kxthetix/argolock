@@ -1,6 +1,6 @@
 # 🔒 ArgoLock — AI-Powered VAPT Platform
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-argolock--rd17.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://argolock-rd17.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-argolock.vercel.app-6366f1?style=for-the-badge&logo=vercel)](https://argolock.vercel.app)
 [![GitHub](https://img.shields.io/badge/GitHub-Kxthetix%2Fargolock-24292e?style=for-the-badge&logo=github)](https://github.com/Kxthetix/argolock)
 
 ArgoLock is a fully automated **Vulnerability Assessment & Penetration Testing (VAPT)** platform powered by AI. It orchestrates industry-standard security tools, analyzes results with AI, and generates professional PDF/JSON security reports.
@@ -9,7 +9,8 @@ ArgoLock is a fully automated **Vulnerability Assessment & Penetration Testing (
 
 ## 🚀 Live Demo
 
-Visit **https://argolock-rd17.vercel.app** — all features work in demo mode with realistic sample data (no backend required).
+Visit **https://argolock.vercel.app** — all features work in demo mode with realistic sample data (no backend required).
+Live Backend API Docs: **https://argolock.onrender.com/api/docs**
 
 ---
 
@@ -161,7 +162,7 @@ REDIS_URL=redis://localhost:6379/0
 
 # Security
 SECRET_KEY=your-secret-key-here
-CORS_ORIGINS=["http://localhost:5173","https://argolock-rd17.vercel.app"]
+CORS_ORIGINS=["http://localhost:5173","https://argolock.vercel.app"]
 ```
 
 ### Frontend (`.env.local`)
@@ -188,7 +189,7 @@ VITE_API_URL=http://localhost:8000/api
 
 ## 📸 Screenshots
 
-Visit the **[Live Demo](https://argolock-rd17.vercel.app)** to see all features in action.
+Visit the **[Live Demo](https://argolock.vercel.app)** to see all features in action.
 
 ---
 
