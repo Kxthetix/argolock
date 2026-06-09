@@ -32,14 +32,13 @@ export function ReportsPage() {
   }, []);
 
   const riskColor = (rating: string) => {
-    const colors: Record<string, string> = {
-      Critical: 'var(--sev-critical)',
-      High: 'var(--sev-high)',
-      Medium: 'var(--sev-medium)',
-      Low: 'var(--sev-low)',
-      Informational: 'var(--text-muted)',
-    };
-    return colors[rating] || 'var(--text-muted)';
+    const r = (rating || '').toLowerCase();
+    if (r.includes('critical')) return 'var(--sev-critical)';
+    if (r.includes('high')) return 'var(--sev-high)';
+    if (r.includes('elevated')) return 'var(--sev-high)';
+    if (r.includes('medium') || r.includes('moderate')) return 'var(--sev-medium)';
+    if (r.includes('low')) return 'var(--sev-low)';
+    return 'var(--text-muted)';
   };
 
   return (
