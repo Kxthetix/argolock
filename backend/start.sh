@@ -11,9 +11,9 @@ until redis-cli ping >/dev/null 2>&1; do
 done
 echo "✅ Redis is running."
 
-# 3. Start Celery worker in the background
+# 3. Start Celery worker in the background (listens to all routed queues)
 echo "🚀 Starting Celery task worker..."
-celery -A workers.celery_app worker -c 1 --loglevel=info &
+celery -A workers.celery_app worker -Q recon,scanner,exploit,ai,default -c 1 --loglevel=info &
 
 # 4. Start FastAPI application in the foreground (binds to the port Render provides)
 echo "🚀 Starting FastAPI server..."
