@@ -30,6 +30,9 @@ RUN mkdir -p /tmp/argolock_reports
 # Make start script executable
 RUN chmod +x start.sh
 
+# Allow Celery to run with root privileges in Docker
+ENV C_FORCE_ROOT=true
+
 EXPOSE 8000
 
 CMD ["./start.sh"]
