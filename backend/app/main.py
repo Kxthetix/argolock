@@ -51,6 +51,25 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 ArgoLock backend starting up...")
     await connect_db()
     
+    # ── Startup database cleanup ──────────────────────────────────────────────
+    try:
+        from datetime import datetime
+        from app.database import get_db
+        db = get_db()
+        ongoing_statuses = ["pending", "running", "recon", "scanning", "exploiting", "ai_analysis", "reporting"]
+        result = await db["scans"].update_many(
+            {"status": {"$in": ongoing_statuses}},
+            {"$set": {
+                "status": "failed",
+                "error": "Scan interrupted due to server restart",
+                "completed_at": datetime.utcnow().isoformat()
+            }}
+        )
+        if result.modified_count > 0:
+            logger.info(f"🧹 Cleaned up {result.modified_count} interrupted scan(s) from database.")
+    except Exception as e:
+        logger.error(f"Failed to clean up interrupted scans on startup: {e}")
+    
     # Start Redis listener task
     listener_task = asyncio.create_task(redis_pubsub_listener())
     

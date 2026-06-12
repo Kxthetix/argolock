@@ -76,6 +76,7 @@ celery_app.conf.update(
     task_default_queue="default",
     task_soft_time_limit=1800,   # 30 min soft limit
     task_time_limit=3600,        # 1 hour hard limit
+    worker_max_tasks_per_child=1, # recycle worker after 1 task to prevent OOM
 )
 
 
