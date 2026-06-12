@@ -16,11 +16,35 @@ from app.config import settings
 def run_async(coro):
     """Run an async coroutine synchronously, handling event loops in threads."""
     try:
-        return asyncio.run(coro)
+        loop = asyncio.get_running_loop()
     except RuntimeError:
-        # Fallback if loop is already running
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(coro)
+        loop = None
+
+    if loop and loop.is_running():
+        import threading
+        result = []
+        exception = []
+
+        def worker():
+            try:
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                res = new_loop.run_until_complete(coro)
+                result.append(res)
+            except Exception as e:
+                exception.append(e)
+            finally:
+                new_loop.close()
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+
+        if exception:
+            raise exception[0]
+        return result[0]
+    else:
+        return asyncio.run(coro)
 
 celery_app = Celery(
     "argolock",
