@@ -66,104 +66,113 @@ def _save_tool_result(db, scan_id: str, tool_name: str, result):
 def run_recon(self, scan_id: str, scan_data: dict):
     """Run all reconnaissance tools against the target."""
     db = _get_db_sync()
-    target = scan_data["scope"]["target"]
-    config = scan_data.get("config", {})
-    is_domain = "." in target and not target.replace(".", "").isdigit()
-    http_target = target if target.startswith("http") else f"http://{target}"
+    try:
+        target = scan_data["scope"]["target"]
+        config = scan_data.get("config", {})
+        is_domain = "." in target and not target.replace(".", "").isdigit()
+        http_target = target if target.startswith("http") else f"http://{target}"
 
-    _update_scan_status(db, scan_id, "recon", "Reconnaissance", 5)
-    _log(scan_id, "info", f"🔍 Starting reconnaissance on target: {target}")
+        _update_scan_status(db, scan_id, "recon", "Reconnaissance", 5)
+        _log(scan_id, "info", f"🔍 Starting reconnaissance on target: {target}")
 
-    recon_results = {"target": target}
+        recon_results = {"target": target}
 
-    # ── Subfinder ─────────────────────────────────────────────────────────────
-    if is_domain:
-        _update_scan_status(db, scan_id, "recon", "Subdomain Enumeration (Subfinder)", 6)
-        _log(scan_id, "info", "Running Subfinder (subdomain enumeration)...", "subfinder")
+        # ── Subfinder ─────────────────────────────────────────────────────────────
+        if is_domain:
+            _update_scan_status(db, scan_id, "recon", "Subdomain Enumeration (Subfinder)", 6)
+            _log(scan_id, "info", "Running Subfinder (subdomain enumeration)...", "subfinder")
+            try:
+                subfinder = SubfinderTool()
+                from workers.celery_app import run_async
+                result = run_async(subfinder.run(target))
+                _save_tool_result(db, scan_id, "subfinder", result)
+                recon_results["subfinder"] = result.parsed_data or {}
+                count = len(recon_results["subfinder"].get("subdomains", []))
+                _log(scan_id, "success", f"Subfinder found {count} subdomains", "subfinder")
+            except Exception as e:
+                _log(scan_id, "warning", f"Subfinder failed: {e}", "subfinder")
+
+        # ── Amass ─────────────────────────────────────────────────────────────────
+        if is_domain:
+            _update_scan_status(db, scan_id, "recon", "Subdomain Enumeration (Amass)", 9)
+            _log(scan_id, "info", "Running Amass (OSINT subdomain enumeration)...", "amass")
+            try:
+                amass = AmassTool()
+                from workers.celery_app import run_async
+                result = run_async(amass.run(target))
+                _save_tool_result(db, scan_id, "amass", result)
+                recon_results["amass"] = result.parsed_data or {}
+                count = len(recon_results["amass"].get("subdomains", []))
+                _log(scan_id, "success", f"Amass found {count} subdomains", "amass")
+            except Exception as e:
+                _log(scan_id, "warning", f"Amass failed: {e}", "amass")
+
+        # ── Naabu ─────────────────────────────────────────────────────────────────
+        _update_scan_status(db, scan_id, "recon", "Port Discovery (Naabu)", 12)
+        _log(scan_id, "info", "Running Naabu (fast port discovery)...", "naabu")
         try:
-            subfinder = SubfinderTool()
+            naabu = NaabuTool()
             from workers.celery_app import run_async
-            result = run_async(subfinder.run(target))
-            _save_tool_result(db, scan_id, "subfinder", result)
-            recon_results["subfinder"] = result.parsed_data or {}
-            count = len(recon_results["subfinder"].get("subdomains", []))
-            _log(scan_id, "success", f"Subfinder found {count} subdomains", "subfinder")
+            result = run_async(naabu.run(target, {"top_ports": "100"}))
+            _save_tool_result(db, scan_id, "naabu", result)
+            recon_results["naabu"] = result.parsed_data or {}
+            ports = len(recon_results["naabu"].get("open_ports", []))
+            _log(scan_id, "success", f"Naabu found {ports} open ports", "naabu")
         except Exception as e:
-            _log(scan_id, "warning", f"Subfinder failed: {e}", "subfinder")
+            _log(scan_id, "error", f"Naabu failed: {e}", "naabu")
 
-    # ── Amass ─────────────────────────────────────────────────────────────────
-    if is_domain:
-        _update_scan_status(db, scan_id, "recon", "Subdomain Enumeration (Amass)", 9)
-        _log(scan_id, "info", "Running Amass (OSINT subdomain enumeration)...", "amass")
+        # ── Nmap ──────────────────────────────────────────────────────────────────
+        _update_scan_status(db, scan_id, "recon", "Port Scanning (Nmap)", 16)
+        _log(scan_id, "info", "Running Nmap (port scan + service detection)...", "nmap")
         try:
-            amass = AmassTool()
+            nmap = NmapTool()
+            nmap_opts = {"ports": config.get("nmap_ports", "top-1000")}
             from workers.celery_app import run_async
-            result = run_async(amass.run(target))
-            _save_tool_result(db, scan_id, "amass", result)
-            recon_results["amass"] = result.parsed_data or {}
-            count = len(recon_results["amass"].get("subdomains", []))
-            _log(scan_id, "success", f"Amass found {count} subdomains", "amass")
+            result = run_async(nmap.run(target, nmap_opts))
+            _save_tool_result(db, scan_id, "nmap", result)
+            recon_results["nmap"] = result.parsed_data or {}
+            ports = len(recon_results["nmap"].get("open_ports", []))
+            _log(scan_id, "success", f"Nmap found {ports} open ports", "nmap")
         except Exception as e:
-            _log(scan_id, "warning", f"Amass failed: {e}", "amass")
+            _log(scan_id, "error", f"Nmap failed: {e}", "nmap")
 
-    # ── Naabu ─────────────────────────────────────────────────────────────────
-    _update_scan_status(db, scan_id, "recon", "Port Discovery (Naabu)", 12)
-    _log(scan_id, "info", "Running Naabu (fast port discovery)...", "naabu")
-    try:
-        naabu = NaabuTool()
-        from workers.celery_app import run_async
-        result = run_async(naabu.run(target, {"top_ports": "100"}))
-        _save_tool_result(db, scan_id, "naabu", result)
-        recon_results["naabu"] = result.parsed_data or {}
-        ports = len(recon_results["naabu"].get("open_ports", []))
-        _log(scan_id, "success", f"Naabu found {ports} open ports", "naabu")
+        # ── httpx probe ───────────────────────────────────────────────────────────
+        _update_scan_status(db, scan_id, "recon", "HTTP Probing (httpx)", 21)
+        _log(scan_id, "info", "Running httpx (HTTP service probe)...", "httpx_probe")
+        try:
+            httpx_probe = HttpxProbeTool()
+            from workers.celery_app import run_async
+            result = run_async(httpx_probe.run(http_target))
+            _save_tool_result(db, scan_id, "httpx_probe", result)
+            recon_results["httpx_probe"] = result.parsed_data or {}
+            live = recon_results["httpx_probe"].get("live_count", 0)
+            _log(scan_id, "success", f"httpx probed {live} live endpoints", "httpx_probe")
+        except Exception as e:
+            _log(scan_id, "warning", f"httpx probe failed: {e}", "httpx_probe")
+
+        # ── WhatWeb ───────────────────────────────────────────────────────────────
+        _update_scan_status(db, scan_id, "recon", "Technology Fingerprinting (WhatWeb)", 26)
+        _log(scan_id, "info", "Running WhatWeb (technology fingerprinting)...", "whatweb")
+        try:
+            whatweb = WhatWebTool()
+            from workers.celery_app import run_async
+            result = run_async(whatweb.run(http_target))
+            _save_tool_result(db, scan_id, "whatweb", result)
+            recon_results["whatweb"] = result.parsed_data or {}
+            techs = len(recon_results["whatweb"].get("technologies", []))
+            _log(scan_id, "success", f"WhatWeb identified {techs} technologies", "whatweb")
+        except Exception as e:
+            _log(scan_id, "warning", f"WhatWeb failed: {e}", "whatweb")
+
+        _update_scan_status(db, scan_id, "recon", "Recon Complete", 30)
+        _log(scan_id, "info", "✅ Reconnaissance phase complete")
+
+        return recon_results
     except Exception as e:
-        _log(scan_id, "error", f"Naabu failed: {e}", "naabu")
-
-    # ── Nmap ──────────────────────────────────────────────────────────────────
-    _update_scan_status(db, scan_id, "recon", "Port Scanning (Nmap)", 16)
-    _log(scan_id, "info", "Running Nmap (port scan + service detection)...", "nmap")
-    try:
-        nmap = NmapTool()
-        nmap_opts = {"ports": config.get("nmap_ports", "top-1000")}
-        from workers.celery_app import run_async
-        result = run_async(nmap.run(target, nmap_opts))
-        _save_tool_result(db, scan_id, "nmap", result)
-        recon_results["nmap"] = result.parsed_data or {}
-        ports = len(recon_results["nmap"].get("open_ports", []))
-        _log(scan_id, "success", f"Nmap found {ports} open ports", "nmap")
-    except Exception as e:
-        _log(scan_id, "error", f"Nmap failed: {e}", "nmap")
-
-    # ── httpx probe ───────────────────────────────────────────────────────────
-    _update_scan_status(db, scan_id, "recon", "HTTP Probing (httpx)", 21)
-    _log(scan_id, "info", "Running httpx (HTTP service probe)...", "httpx_probe")
-    try:
-        httpx_probe = HttpxProbeTool()
-        from workers.celery_app import run_async
-        result = run_async(httpx_probe.run(http_target))
-        _save_tool_result(db, scan_id, "httpx_probe", result)
-        recon_results["httpx_probe"] = result.parsed_data or {}
-        live = recon_results["httpx_probe"].get("live_count", 0)
-        _log(scan_id, "success", f"httpx probed {live} live endpoints", "httpx_probe")
-    except Exception as e:
-        _log(scan_id, "warning", f"httpx probe failed: {e}", "httpx_probe")
-
-    # ── WhatWeb ───────────────────────────────────────────────────────────────
-    _update_scan_status(db, scan_id, "recon", "Technology Fingerprinting (WhatWeb)", 26)
-    _log(scan_id, "info", "Running WhatWeb (technology fingerprinting)...", "whatweb")
-    try:
-        whatweb = WhatWebTool()
-        from workers.celery_app import run_async
-        result = run_async(whatweb.run(http_target))
-        _save_tool_result(db, scan_id, "whatweb", result)
-        recon_results["whatweb"] = result.parsed_data or {}
-        techs = len(recon_results["whatweb"].get("technologies", []))
-        _log(scan_id, "success", f"WhatWeb identified {techs} technologies", "whatweb")
-    except Exception as e:
-        _log(scan_id, "warning", f"WhatWeb failed: {e}", "whatweb")
-
-    _update_scan_status(db, scan_id, "recon", "Recon Complete", 30)
-    _log(scan_id, "info", "✅ Reconnaissance phase complete")
-
-    return recon_results
+        logger.exception(f"Recon task failed for scan {scan_id}")
+        db["scans"].update_one(
+            {"id": scan_id},
+            {"$set": {"status": "failed", "error": f"Reconnaissance failed: {e}"}},
+        )
+        _broadcast(scan_id, {"type": "progress", "phase": "Reconnaissance", "percent": 0, "status": "failed"})
+        raise

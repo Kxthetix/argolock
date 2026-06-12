@@ -14,13 +14,54 @@ from app.routers import health, scans, findings, reports
 from app.services.websocket_manager import ws_manager
 
 
+async def redis_pubsub_listener():
+    import redis.asyncio as aioredis
+    import json
+    
+    logger.info("Starting Redis pub/sub listener background task...")
+    while True:
+        try:
+            r = aioredis.from_url(settings.redis_url)
+            pubsub = r.pubsub()
+            await pubsub.psubscribe("scan:*")
+            logger.info("Subscribed to scan:* channel pattern on Redis")
+            async for message in pubsub.listen():
+                if message["type"] == "pmessage":
+                    channel = message["channel"].decode("utf-8")
+                    data = message["data"].decode("utf-8")
+                    parts = channel.split(":")
+                    if len(parts) >= 2:
+                        scan_id = parts[1]
+                        try:
+                            payload = json.loads(data)
+                            await ws_manager.broadcast(scan_id, payload)
+                        except Exception as e:
+                            logger.error(f"Error parsing/broadcasting Redis message: {e}")
+        except asyncio.CancelledError:
+            logger.info("Redis pub/sub listener background task cancelled.")
+            break
+        except Exception as e:
+            logger.error(f"Redis pubsub connection error: {e}. Retrying in 5 seconds...")
+            await asyncio.sleep(5)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     logger.info("🚀 ArgoLock backend starting up...")
     await connect_db()
+    
+    # Start Redis listener task
+    listener_task = asyncio.create_task(redis_pubsub_listener())
+    
     yield
+    
     logger.info("🛑 ArgoLock backend shutting down...")
+    listener_task.cancel()
+    try:
+        await listener_task
+    except asyncio.CancelledError:
+        pass
     await disconnect_db()
 
 

@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3"
 
     # ── Tool Execution ────────────────────────────────────────────────────────
-    tool_execution_mode: str = "docker"  # docker | subprocess
+    tool_execution_mode: str = "subprocess"  # docker | subprocess
     tool_timeout_seconds: int = 300
     nmap_docker_image: str = "instrumentisto/nmap:latest"
     nuclei_docker_image: str = "projectdiscovery/nuclei:latest"
