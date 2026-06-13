@@ -39,8 +39,14 @@ def _store_raw_findings(db, scan_id: str, tool: str, findings: list):
 
 
 @celery_app.task(name="workers.scanner_worker.run_scanner", bind=True)
-def run_scanner(self, recon_results: dict, scan_id: str):
+def run_scanner(self, recon_results_or_scan_id: Any, scan_id: str | None = None):
     """Run all vulnerability scanners against the target."""
+    if scan_id is None:
+        scan_id = recon_results_or_scan_id
+        recon_results = None
+    else:
+        recon_results = recon_results_or_scan_id
+
     db = _get_db_sync()
     try:
         scan_doc = db["scans"].find_one({"id": scan_id})
@@ -125,7 +131,7 @@ def run_scanner(self, recon_results: dict, scan_id: str):
         _update_scan_status(db, scan_id, "scanning", "Scanner Complete", 70)
         _log(scan_id, "info", "✅ Vulnerability scanning phase complete")
 
-        return scan_results
+        return {"status": "success", "scan_id": scan_id, "target": target}
     except Exception as e:
         logger.exception(f"Scanner task failed for scan {scan_id}")
         db["scans"].update_one(

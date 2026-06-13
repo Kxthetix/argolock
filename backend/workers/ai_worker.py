@@ -19,8 +19,14 @@ from workers.recon_worker import _get_db_sync, _update_scan_status, _log, _broad
 
 
 @celery_app.task(name="workers.ai_worker.run_ai_analysis", bind=True)
-def run_ai_analysis(self, scan_results: dict, scan_id: str):
+def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = None):
     """Run all 4 AI agents on the collected scan data."""
+    if scan_id is None:
+        scan_id = scan_results_or_scan_id
+        scan_results = None
+    else:
+        scan_results = scan_results_or_scan_id
+
     from agents.vulnerability_agent import VulnerabilityAgent
     from agents.risk_scoring_agent import RiskScoringAgent
     from agents.remediation_agent import RemediationAgent

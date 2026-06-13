@@ -93,10 +93,10 @@ def run_full_pipeline(self, scan_id: str, scan_data: dict):
     from workers.ai_worker import run_ai_analysis
 
     pipeline = chain(
-        run_recon.s(scan_id, scan_data),
-        run_scanner.s(scan_id),
-        run_exploit.s(scan_id),
-        run_ai_analysis.s(scan_id),
+        run_recon.si(scan_id, scan_data),
+        run_scanner.si(scan_id),
+        run_exploit.si(scan_id),
+        run_ai_analysis.si(scan_id),
     )
     pipeline.apply_async()
     return {"scan_id": scan_id, "status": "pipeline_started"}
