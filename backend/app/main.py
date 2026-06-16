@@ -10,7 +10,7 @@ from loguru import logger
 
 from app.config import settings
 from app.database import connect_db, disconnect_db
-from app.routers import health, scans, findings, reports
+from app.routers import health, scans, findings, reports, auth
 from app.services.websocket_manager import ws_manager
 
 
@@ -108,6 +108,7 @@ app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(scans.router, prefix="/api/scans", tags=["Scans"])
 app.include_router(findings.router, prefix="/api/findings", tags=["Findings"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 from fastapi import WebSocket, WebSocketDisconnect
