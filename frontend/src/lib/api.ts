@@ -352,5 +352,5 @@ export const api = IS_DEMO ? {
   health: () => request<{ status: string }>('/health'),
 };
 
-// Export demo mode flag for UI banners
-export { IS_DEMO };
+// Export demo mode flag and API base path for UI banners / authentication
+export { IS_DEMO, API_BASE };

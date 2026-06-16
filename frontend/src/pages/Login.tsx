@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { IS_DEMO, API_BASE } from '../lib/api';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -27,8 +28,20 @@ export function Login() {
     setError('');
     setSuccessMsg('');
 
+    if (IS_DEMO) {
+      // Simulate sending OTP locally in frontend for standalone static builds
+      setTimeout(() => {
+        const randomOtp = Math.floor(100000 + Math.random() * 900000).toString();
+        setDemoOtp(randomOtp);
+        setStep(2);
+        setSuccessMsg('Demo Mode: Verification code generated!');
+        setLoading(false);
+      }, 600);
+      return;
+    }
+
     try {
-      const response = await fetch('/api/auth/send-otp', {
+      const response = await fetch(`${API_BASE}/auth/send-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -36,7 +49,14 @@ export function Login() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        throw new Error(`Server error (${response.status}): Invalid response format`);
+      }
+
       if (!response.ok) {
         throw new Error(data.detail || 'Failed to send verification code');
       }
@@ -58,8 +78,23 @@ export function Login() {
     setLoading(true);
     setError('');
 
+    if (IS_DEMO) {
+      // Simulate verifying OTP locally in frontend for standalone static builds
+      setTimeout(() => {
+        if (otp === demoOtp || otp === '123456') {
+          localStorage.setItem('auth_token', 'mock-demo-jwt-token');
+          localStorage.setItem('auth_email', email);
+          window.location.href = '/';
+        } else {
+          setError(`Invalid verification code. (Hint: enter ${demoOtp})`);
+          setLoading(false);
+        }
+      }, 500);
+      return;
+    }
+
     try {
-      const response = await fetch('/api/auth/verify-otp', {
+      const response = await fetch(`${API_BASE}/auth/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,7 +102,14 @@ export function Login() {
         body: JSON.stringify({ email, otp }),
       });
 
-      const data = await response.json();
+      let data: any = {};
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        throw new Error(`Server error (${response.status}): Invalid response format`);
+      }
+
       if (!response.ok) {
         throw new Error(data.detail || 'Invalid verification code');
       }
