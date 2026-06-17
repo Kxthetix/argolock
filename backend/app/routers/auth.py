@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
@@ -13,19 +12,16 @@ from pydantic import BaseModel, EmailStr, Field
 from app.config import settings
 from app.database import get_db
 from app.models.user import UserDocument
+from app.utils.crypto import hash_password, verify_password
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
-class SendOTPRequest(BaseModel):
+class LoginRequest(BaseModel):
     email: EmailStr = Field(..., description="User email address")
-
-
-class VerifyOTPRequest(BaseModel):
-    email: EmailStr = Field(..., description="User email address")
-    otp: str = Field(..., description="6-digit verification code")
+    password: str = Field(..., min_length=6, description="User password (min 6 characters)")
 
 
 # ── Dependency ───────────────────────────────────────────────────────────────
@@ -64,88 +60,35 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials | None = De
             headers={"WWW-Authenticate": "Bearer"},
         )
     user.pop("_id", None)
+    user.pop("password_hash", None)  # Hide password hash from client
     return user
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
-@router.post("/send-otp")
-async def send_otp(request: SendOTPRequest):
-    """Generate and log a 6-digit OTP for the user."""
+@router.post("/login")
+async def login(request: LoginRequest):
+    """Register or log in the user using email and password."""
     email = request.email.strip().lower()
-    otp = f"{random.randint(100000, 999999)}"
-    expires_at = datetime.utcnow() + timedelta(minutes=5)
-
-    db = get_db()
-    
-    # Upsert the user document with the generated OTP
-    await db["users"].update_one(
-        {"email": email},
-        {
-            "$set": {
-                "active_otp": otp,
-                "otp_expires_at": expires_at,
-                "updated_at": datetime.utcnow()
-            },
-            "$setOnInsert": {
-                "id": UserDocument(email=email).id,
-                "created_at": datetime.utcnow()
-            }
-        },
-        upsert=True
-    )
-
-    logger.info(f"🔑 [AUTH] Generated OTP {otp} for email {email}. Expires at {expires_at}")
-
-    # Return OTP directly in response for demo mode/development purposes
-    return {
-        "message": "OTP generated and logged successfully",
-        "email": email,
-        "otp": otp  # Included for demo/testing convenience
-    }
-
-
-@router.post("/verify-otp")
-async def verify_otp(request: VerifyOTPRequest):
-    """Verify the 6-digit OTP and issue a JWT token."""
-    email = request.email.strip().lower()
-    otp = request.otp.strip()
+    password = request.password
 
     db = get_db()
     user = await db["users"].find_one({"email": email})
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email or verification code"
-        )
-
-    active_otp = user.get("active_otp")
-    otp_expires_at = user.get("otp_expires_at")
-
-    if not active_otp or active_otp != otp:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email or verification code"
-        )
-
-    if otp_expires_at and datetime.utcnow() > otp_expires_at:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verification code has expired"
-        )
-
-    # Clear OTP on successful verification
-    await db["users"].update_one(
-        {"email": email},
-        {
-            "$set": {
-                "active_otp": None,
-                "otp_expires_at": None,
-                "updated_at": datetime.utcnow()
-            }
-        }
-    )
+    if user is None:
+        # Register new user dynamically on first login for demo convenience
+        hashed = hash_password(password)
+        user_doc = UserDocument(email=email, password_hash=hashed)
+        await db["users"].insert_one(user_doc.model_dump())
+        logger.info(f"👤 [AUTH] Registered new user: {email} with Argon2id")
+    else:
+        # Verify credentials for existing user
+        stored_hash = user.get("password_hash")
+        if not stored_hash or not verify_password(stored_hash, password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid email or password"
+            )
 
     # Generate JWT Token (Expires in 24 hours)
     token_expiry = datetime.utcnow() + timedelta(days=1)
@@ -166,3 +109,4 @@ async def verify_otp(request: VerifyOTPRequest):
 async def read_current_user(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Get details of the currently authenticated user."""
     return current_user
+
