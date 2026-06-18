@@ -26,6 +26,12 @@ export const DEMO_SCANS: Scan[] = [
       subfinder: { status: 'completed', duration_seconds: 28.1 },
       ai_analysis: { status: 'completed', duration_seconds: 22.5 },
     },
+    exploitation_stages: {
+      web_app: { name: 'Web Application Exploits', status: 'skipped', findings_count: 0 },
+      network: { name: 'Network Exploits', status: 'skipped', findings_count: 0 },
+      system_host: { name: 'System & Host Exploits', status: 'skipped', findings_count: 0 },
+      personnel_social: { name: 'Personnel & Social Engineering Exploits', status: 'skipped', findings_count: 0 },
+    },
   },
   {
     id: 'scan-002',
@@ -48,6 +54,12 @@ export const DEMO_SCANS: Scan[] = [
       sqlmap: { status: 'completed', duration_seconds: 145.2 },
       ai_analysis: { status: 'completed', duration_seconds: 18.9 },
     },
+    exploitation_stages: {
+      web_app: { name: 'Web Application Exploits', status: 'completed', findings_count: 1, summary: 'SQLmap verified SQL injection in login form.' },
+      network: { name: 'Network Exploits', status: 'completed', findings_count: 1, summary: 'SSH service weak authentication risk identified.' },
+      system_host: { name: 'System & Host Exploits', status: 'completed', findings_count: 1, summary: 'Outdated SSH version banner matches CVE-2016-2183.' },
+      personnel_social: { name: 'Personnel & Social Engineering Exploits', status: 'completed', findings_count: 2, summary: 'DNS SPF/DMARC records missing; corporate emails leaked.' },
+    },
   },
   {
     id: 'scan-003',
@@ -67,6 +79,12 @@ export const DEMO_SCANS: Scan[] = [
     tool_results: {
       nmap: { status: 'completed', duration_seconds: 22.3 },
       nuclei: { status: 'completed', duration_seconds: 195.6 },
+    },
+    exploitation_stages: {
+      web_app: { name: 'Web Application Exploits', status: 'skipped', findings_count: 0 },
+      network: { name: 'Network Exploits', status: 'skipped', findings_count: 0 },
+      system_host: { name: 'System & Host Exploits', status: 'skipped', findings_count: 0 },
+      personnel_social: { name: 'Personnel & Social Engineering Exploits', status: 'skipped', findings_count: 0 },
     },
   },
   {
@@ -88,6 +106,12 @@ export const DEMO_SCANS: Scan[] = [
       nmap: { status: 'completed', duration_seconds: 41.7 },
       subfinder: { status: 'completed', duration_seconds: 26.4 },
       nuclei: { status: 'running' },
+    },
+    exploitation_stages: {
+      web_app: { name: 'Web Application Exploits', status: 'pending', findings_count: 0 },
+      network: { name: 'Network Exploits', status: 'pending', findings_count: 0 },
+      system_host: { name: 'System & Host Exploits', status: 'pending', findings_count: 0 },
+      personnel_social: { name: 'Personnel & Social Engineering Exploits', status: 'pending', findings_count: 0 },
     },
   },
 ];

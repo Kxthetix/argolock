@@ -55,7 +55,17 @@ export interface Scan {
   medium_count: number;
   low_count: number;
   tool_results?: Record<string, any>;
+  exploitation_stages?: Record<string, ExploitationStage>;
   error?: string;
+}
+
+export interface ExploitationStage {
+  name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  started_at?: string;
+  completed_at?: string;
+  summary?: string;
+  findings_count: number;
 }
 
 export interface Finding {
@@ -162,6 +172,12 @@ const mockApi = {
         high_count: 0,
         medium_count: 0,
         low_count: 0,
+        exploitation_stages: {
+          web_app: { name: 'Web Application Exploits', status: 'pending', findings_count: 0 },
+          network: { name: 'Network Exploits', status: 'pending', findings_count: 0 },
+          system_host: { name: 'System & Host Exploits', status: 'pending', findings_count: 0 },
+          personnel_social: { name: 'Personnel & Social Engineering Exploits', status: 'pending', findings_count: 0 },
+        },
       };
       const scans = getDemoScans();
       scans.unshift(newScan);
@@ -245,15 +261,27 @@ const mockApi = {
 
 // ── Scan progress simulator ───────────────────────────────────────────────────
 function _simulateScanProgress(scanId: string) {
-  const phases = ['recon', 'scanning', 'ai_analysis', 'reporting', 'completed'] as const;
-  const phaseDurations = [8000, 15000, 6000, 4000, 0]; // ms per phase
-  const phaseTargetProgress = [20, 75, 90, 98, 100];
+  const scans = getDemoScans();
+  const initialScan = scans.find(s => s.id === scanId);
+  const hasExploit = initialScan?.config?.enable_exploitation ?? false;
+
+  const phases = hasExploit
+    ? (['recon', 'scanning', 'exploiting', 'ai_analysis', 'reporting', 'completed'] as const)
+    : (['recon', 'scanning', 'ai_analysis', 'reporting', 'completed'] as const);
+
+  const phaseDurations = hasExploit
+    ? [8000, 15000, 12000, 6000, 4000, 0]
+    : [8000, 15000, 6000, 4000, 0];
+
+  const phaseTargetProgress = hasExploit
+    ? [20, 60, 75, 90, 98, 100]
+    : [20, 75, 90, 98, 100];
 
   let phaseIndex = 0;
 
   function tick() {
-    const scans = getDemoScans();
-    const scan = scans.find(s => s.id === scanId);
+    const currentScans = getDemoScans();
+    const scan = currentScans.find(s => s.id === scanId);
     if (!scan || scan.status === 'cancelled') return;
 
     const targetPhase = phases[phaseIndex];
@@ -266,24 +294,64 @@ function _simulateScanProgress(scanId: string) {
     const step = Math.min(targetPct - scan.progress_percent, 5);
     scan.progress_percent = Math.min(scan.progress_percent + Math.max(step, 1), targetPct);
 
+    // Simulate sub-stages within the exploitation phase
+    if (targetPhase === 'exploiting' && scan.exploitation_stages) {
+      const pct = scan.progress_percent;
+      if (pct >= 60 && pct < 63) {
+        scan.exploitation_stages.web_app.status = 'running';
+        scan.exploitation_stages.web_app.summary = 'Testing forms and parameters for injection...';
+        scan.current_phase = 'Exploiting: Web Application Exploits';
+      } else if (pct >= 63 && pct < 66) {
+        scan.exploitation_stages.web_app.status = 'completed';
+        scan.exploitation_stages.web_app.findings_count = 1;
+        scan.exploitation_stages.web_app.summary = 'Web application vulnerability check complete.';
+        scan.exploitation_stages.network.status = 'running';
+        scan.exploitation_stages.network.summary = 'Checking open ports and default configurations...';
+        scan.current_phase = 'Exploiting: Network Exploits';
+      } else if (pct >= 66 && pct < 70) {
+        scan.exploitation_stages.network.status = 'completed';
+        scan.exploitation_stages.network.findings_count = 1;
+        scan.exploitation_stages.network.summary = 'Exposed network ports audit complete.';
+        scan.exploitation_stages.system_host.status = 'running';
+        scan.exploitation_stages.system_host.summary = 'Comparing version banners against CVE catalogs...';
+        scan.current_phase = 'Exploiting: System & Host Exploits';
+      } else if (pct >= 70 && pct < 75) {
+        scan.exploitation_stages.system_host.status = 'completed';
+        scan.exploitation_stages.system_host.findings_count = 1;
+        scan.exploitation_stages.system_host.summary = 'System OS and server component check complete.';
+        scan.exploitation_stages.personnel_social.status = 'running';
+        scan.exploitation_stages.personnel_social.summary = 'Checking DNS records for email security configurations...';
+        scan.current_phase = 'Exploiting: Personnel & Social Engineering Exploits';
+      } else if (pct >= 75) {
+        scan.exploitation_stages.personnel_social.status = 'completed';
+        scan.exploitation_stages.personnel_social.findings_count = 2;
+        scan.exploitation_stages.personnel_social.summary = 'DNS SPF/DMARC audit and credential exposure checks complete.';
+        scan.current_phase = 'Exploiting Complete';
+      }
+    }
+
     if (phaseIndex === phases.length - 1) {
       // Completed
       scan.status = 'completed';
       scan.progress_percent = 100;
       scan.completed_at = new Date().toISOString();
-      scan.finding_count = 3;
-      scan.high_count = 1;
-      scan.medium_count = 2;
+      scan.finding_count = hasExploit ? 8 : 3;
+      scan.critical_count = hasExploit ? 2 : 0;
+      scan.high_count = hasExploit ? 2 : 1;
+      scan.medium_count = hasExploit ? 4 : 2;
+      scan.low_count = 0;
       scan.tool_results = {
         nmap: { status: 'completed', duration_seconds: 32.1 },
         nuclei: { status: 'completed', duration_seconds: 210.4 },
+        sqlmap: hasExploit ? { status: 'completed', duration_seconds: 124.5 } : undefined,
+        dns_sec_audit: hasExploit ? { status: 'completed', duration_seconds: 8.3 } : undefined,
         ai_analysis: { status: 'completed', duration_seconds: 14.8 },
       };
-      saveDemoScans(scans);
+      saveDemoScans(currentScans);
       return;
     }
 
-    saveDemoScans(scans);
+    saveDemoScans(currentScans);
 
     if (scan.progress_percent >= targetPct) {
       phaseIndex++;

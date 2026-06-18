@@ -253,21 +253,79 @@ export function ScanDetailPage() {
       )}
 
       {activeTab === 'progress' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Scan Details</div>
+        <>
+          {scan.config?.enable_exploitation && scan.exploitation_stages && (
+            <div className="card mb-6 animate-fadeIn">
+              <div className="card-header">
+                <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Shield size={16} color="var(--primary-light)" />
+                  Exploitation Stages
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {Object.entries(scan.exploitation_stages).map(([key, stage]: [string, any]) => {
+                  const isActive = stage.status === 'running';
+                  const isDone = stage.status === 'completed';
+                  const isSkipped = stage.status === 'skipped';
+                  const isFailed = stage.status === 'failed';
+
+                  let statusText = 'Pending';
+                  let badgeClass = 'badge-blue';
+                  if (isActive) { statusText = 'In Progress'; badgeClass = 'badge-info animate-pulse'; }
+                  if (isDone) { statusText = 'Completed'; badgeClass = 'badge-success'; }
+                  if (isSkipped) { statusText = 'Skipped'; badgeClass = 'badge-gray'; }
+                  if (isFailed) { statusText = 'Failed'; badgeClass = 'badge-critical'; }
+
+                  return (
+                    <div key={key} style={{
+                      display: 'flex', flexDirection: 'column', gap: 6,
+                      padding: '12px 16px', background: 'var(--bg-elevated)',
+                      borderRadius: 10, border: `1px solid ${isActive ? 'var(--accent-cyan)' : 'var(--border)'}`,
+                      boxShadow: isActive ? '0 0 12px rgba(0, 180, 216, 0.15)' : 'none',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                          {stage.name}
+                        </div>
+                        <span className={`badge ${badgeClass}`} style={{ fontSize: 10, padding: '2px 8px' }}>
+                          {statusText}
+                        </span>
+                      </div>
+                      {stage.summary && (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                          {stage.summary}
+                        </div>
+                      )}
+                      {stage.findings_count > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span className="badge badge-critical" style={{ fontSize: 9, padding: '1px 6px' }}>
+                            {stage.findings_count} {stage.findings_count === 1 ? 'Vulnerability' : 'Vulnerabilities'} Identified
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">Scan Details</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <Detail label="Scan ID" value={scan.id} mono />
+              <Detail label="Target" value={scan.scope?.target} />
+              <Detail label="Status" value={scan.status} />
+              <Detail label="Progress" value={`${scan.progress_percent}%`} />
+              <Detail label="Safe Mode" value={scan.config?.safe_mode ? 'Enabled' : 'Disabled'} />
+              <Detail label="Exploitation" value={scan.config?.enable_exploitation ? 'Enabled' : 'Disabled'} />
+              <Detail label="Created" value={scan.created_at ? format(new Date(scan.created_at), 'MMM dd, yyyy HH:mm') : '—'} />
+              <Detail label="Completed" value={scan.completed_at ? format(new Date(scan.completed_at), 'MMM dd, yyyy HH:mm') : '—'} />
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            <Detail label="Scan ID" value={scan.id} mono />
-            <Detail label="Target" value={scan.scope?.target} />
-            <Detail label="Status" value={scan.status} />
-            <Detail label="Progress" value={`${scan.progress_percent}%`} />
-            <Detail label="Safe Mode" value={scan.config?.safe_mode ? 'Enabled' : 'Disabled'} />
-            <Detail label="Exploitation" value={scan.config?.enable_exploitation ? 'Enabled' : 'Disabled'} />
-            <Detail label="Created" value={scan.created_at ? format(new Date(scan.created_at), 'MMM dd, yyyy HH:mm') : '—'} />
-            <Detail label="Completed" value={scan.completed_at ? format(new Date(scan.completed_at), 'MMM dd, yyyy HH:mm') : '—'} />
-          </div>
-        </div>
+        </>
       )}
     </div>
   );

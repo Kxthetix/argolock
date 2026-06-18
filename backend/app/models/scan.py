@@ -39,7 +39,34 @@ class ToolStatus(str, Enum):
     SKIPPED = "skipped"
 
 
+class ExploitationStageStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class ExploitationStageInfo(BaseModel):
+    name: str
+    status: ExploitationStageStatus = ExploitationStageStatus.PENDING
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    summary: Optional[str] = None
+    findings_count: int = 0
+
+
+def default_exploitation_stages() -> Dict[str, ExploitationStageInfo]:
+    return {
+        "web_app": ExploitationStageInfo(name="Web Application Exploits"),
+        "network": ExploitationStageInfo(name="Network Exploits"),
+        "system_host": ExploitationStageInfo(name="System & Host Exploits"),
+        "personnel_social": ExploitationStageInfo(name="Personnel & Social Engineering Exploits"),
+    }
+
+
 # ── Tool Result ───────────────────────────────────────────────────────────────
+
 
 class ToolResult(BaseModel):
     tool_name: str
@@ -101,6 +128,7 @@ class ScanDocument(BaseModel):
     medium_count: int = 0
     low_count: int = 0
     error: Optional[str] = None
+    exploitation_stages: Dict[str, ExploitationStageInfo] = Field(default_factory=default_exploitation_stages)
 
     class Config:
         use_enum_values = True
