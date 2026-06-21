@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export PYTHONPATH=/app
+
 # 1. Start Redis server in the background
 echo "🚀 Starting Redis server locally..."
 redis-server --daemonize yes --port 6379
