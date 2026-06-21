@@ -167,6 +167,10 @@ def run_recon(self, scan_id: str, scan_data: dict):
         _update_scan_status(db, scan_id, "recon", "Recon Complete", 30)
         _log(scan_id, "info", "✅ Reconnaissance phase complete")
 
+        # Trigger next phase (Vulnerability Scanning)
+        from workers.scanner_worker import run_scanner
+        run_scanner.delay(scan_id)
+
         return {"status": "success", "scan_id": scan_id, "target": target}
     except Exception as e:
         logger.exception(f"Recon task failed for scan {scan_id}")

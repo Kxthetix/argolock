@@ -83,20 +83,9 @@ celery_app.conf.update(
 @celery_app.task(name="workers.celery_app.run_full_pipeline", bind=True)
 def run_full_pipeline(self, scan_id: str, scan_data: dict):
     """
-    Orchestrate the full VAPT pipeline as a Celery chain.
+    Orchestrate the full VAPT pipeline.
     Runs phases sequentially: recon → scan → exploit → AI analysis.
     """
-    from celery import chain
     from workers.recon_worker import run_recon
-    from workers.scanner_worker import run_scanner
-    from workers.exploit_worker import run_exploit
-    from workers.ai_worker import run_ai_analysis
-
-    pipeline = chain(
-        run_recon.si(scan_id, scan_data),
-        run_scanner.si(scan_id),
-        run_exploit.si(scan_id),
-        run_ai_analysis.si(scan_id),
-    )
-    pipeline.apply_async()
+    run_recon.delay(scan_id, scan_data)
     return {"scan_id": scan_id, "status": "pipeline_started"}

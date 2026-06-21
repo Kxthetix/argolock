@@ -131,6 +131,10 @@ def run_scanner(self, recon_results_or_scan_id: Any, scan_id: str | None = None)
         _update_scan_status(db, scan_id, "scanning", "Scanner Complete", 70)
         _log(scan_id, "info", "✅ Vulnerability scanning phase complete")
 
+        # Trigger next phase (Exploitation)
+        from workers.exploit_worker import run_exploit
+        run_exploit.delay(scan_id)
+
         return {"status": "success", "scan_id": scan_id, "target": target}
     except Exception as e:
         logger.exception(f"Scanner task failed for scan {scan_id}")
