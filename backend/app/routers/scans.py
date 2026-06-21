@@ -114,13 +114,5 @@ async def cancel_scan(scan_id: str):
     return {"message": "Scan cancelled"}
 
 
-@router.get("/{scan_id}/debug-ai")
-async def debug_ai_analysis(scan_id: str):
-    from workers.ai_worker import run_ai_analysis
-    try:
-        res = run_ai_analysis(scan_id)
-        return {"status": "success", "result": res}
-    except Exception as e:
-        import traceback
-        return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+
 
