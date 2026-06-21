@@ -27,17 +27,19 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
     else:
         scan_results = scan_results_or_scan_id
 
-    from agents.vulnerability_agent import VulnerabilityAgent
-    from agents.risk_scoring_agent import RiskScoringAgent
-    from agents.remediation_agent import RemediationAgent
-    from agents.report_agent import ReportAgent
-    from ai_providers import get_provider
-    import asyncio
-
-    db = _get_db_sync()
+    db = None
     try:
+        db = _get_db_sync()
+        from agents.vulnerability_agent import VulnerabilityAgent
+        from agents.risk_scoring_agent import RiskScoringAgent
+        from agents.remediation_agent import RemediationAgent
+        from agents.report_agent import ReportAgent
+        from ai_providers import get_provider
+        import asyncio
+
         scan_doc = db["scans"].find_one({"id": scan_id})
         if not scan_doc:
+            logger.warning(f"Scan {scan_id} not found in database")
             return
 
         _update_scan_status(db, scan_id, "ai_analysis", "AI Analysis", 75)
@@ -148,9 +150,13 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
         }))
     except Exception as e:
         logger.exception(f"AI analysis task failed for scan {scan_id}")
-        db["scans"].update_one(
-            {"id": scan_id},
-            {"$set": {"status": "failed", "error": f"AI Analysis failed: {e}"}},
-        )
-        _broadcast(scan_id, {"type": "progress", "phase": "AI Analysis", "percent": 0, "status": "failed"})
+        if db is not None:
+            try:
+                db["scans"].update_one(
+                    {"id": scan_id},
+                    {"$set": {"status": "failed", "error": f"AI Analysis failed: {e}"}},
+                )
+                _broadcast(scan_id, {"type": "progress", "phase": "AI Analysis", "percent": 0, "status": "failed"})
+            except Exception as db_err:
+                logger.error(f"Failed to update database status: {db_err}")
         raise
