@@ -149,12 +149,15 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             "type": "progress", "phase": "Complete", "percent": 100, "status": "completed"
         }))
     except Exception as e:
-        logger.exception(f"AI analysis task failed for scan {scan_id}")
+        import os
+        import sys
+        err_msg = f"AI Analysis failed: {e}. sys.path={sys.path}, cwd={os.getcwd()}"
+        logger.exception(err_msg)
         if db is not None:
             try:
                 db["scans"].update_one(
                     {"id": scan_id},
-                    {"$set": {"status": "failed", "error": f"AI Analysis failed: {e}"}},
+                    {"$set": {"status": "failed", "error": err_msg}},
                 )
                 _broadcast(scan_id, {"type": "progress", "phase": "AI Analysis", "percent": 0, "status": "failed"})
             except Exception as db_err:
