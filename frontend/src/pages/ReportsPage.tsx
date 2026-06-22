@@ -130,7 +130,7 @@ export function ReportsPage() {
                         download
                       >
                         <Download size={12} />
-                        PDF Report
+                        {report.pdf_path.endsWith('.html') ? 'HTML Report' : 'PDF Report'}
                       </a>
                     )}
                     {report.json_path && (

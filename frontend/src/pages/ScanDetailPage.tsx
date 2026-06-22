@@ -108,7 +108,7 @@ export function ScanDetailPage() {
             download
           >
             <Download size={14} />
-            Download PDF
+            {report.pdf_path.endsWith('.html') ? 'Download HTML' : 'Download PDF'}
           </a>
         )}
         {report?.json_path && (

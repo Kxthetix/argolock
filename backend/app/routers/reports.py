@@ -32,6 +32,13 @@ async def download_pdf(scan_id: str):
     if not os.path.exists(pdf_path):
         raise HTTPException(status_code=404, detail="PDF file not found on server")
 
+    if pdf_path.endswith(".html"):
+        return FileResponse(
+            path=pdf_path,
+            media_type="text/html",
+            filename=f"argolock_report_{scan_id}.html",
+        )
+
     return FileResponse(
         path=pdf_path,
         media_type="application/pdf",
