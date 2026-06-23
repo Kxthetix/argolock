@@ -60,14 +60,21 @@ async def download_pdf(scan_id: str):
 
     pdf_path = doc.get("pdf_path")
     
-    # Check if a valid PDF exists on disk
+    # Check if a valid PDF exists on disk (starts with %PDF and ends with %%EOF)
     is_valid_pdf = False
     if pdf_path and os.path.exists(pdf_path):
         try:
-            with open(pdf_path, "rb") as f:
-                first_bytes = f.read(10).lower()
-                if first_bytes.startswith(b"%pdf"):
-                    is_valid_pdf = True
+            file_size = os.path.getsize(pdf_path)
+            if file_size > 100:
+                with open(pdf_path, "rb") as f:
+                    f.seek(0)
+                    start_bytes = f.read(10).lower()
+                    if start_bytes.startswith(b"%pdf"):
+                        # Read last 100 bytes to check %%EOF marker
+                        f.seek(max(0, file_size - 100))
+                        last_bytes = f.read(100).lower()
+                        if b"%%eof" in last_bytes:
+                            is_valid_pdf = True
         except Exception:
             pass
 

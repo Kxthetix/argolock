@@ -119,6 +119,14 @@ add_header Referrer-Policy "strict-origin-when-cross-origin" always;"""
     return f
 
 
+def _get_db_sync():
+    """Get a synchronous MongoDB connection using pymongo client."""
+    from pymongo import MongoClient
+    from app.config import settings
+    client = MongoClient(settings.mongodb_url)
+    return client[settings.mongodb_db]
+
+
 async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
     """Render HTML template and convert to PDF."""
     try:
@@ -130,7 +138,6 @@ async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
     # Fetch scan document for full tool results and asset details
     scan_doc = None
     try:
-        from workers.recon_worker import _get_db_sync
         db = _get_db_sync()
         scan_doc = db["scans"].find_one({"id": scan_id})
     except Exception as e:
@@ -145,7 +152,6 @@ async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
     # If findings list is empty in report_data, query from DB findings collection
     if not findings and scan_id:
         try:
-            from workers.recon_worker import _get_db_sync
             db = _get_db_sync()
             findings = list(db["findings"].find({"scan_id": scan_id}))
         except Exception as e:
