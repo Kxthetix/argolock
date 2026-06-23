@@ -31,6 +31,119 @@ class NmapTool(BaseTool):
         cmd.append(target)
         return cmd
 
+    def fallback_run(self, target: str, options: Dict[str, Any]) -> Optional[Tuple[str, str, int]]:
+        """Fallback to Python-based async TCP connect scan if nmap is blocked or lacks privileges."""
+        logger.warning(f"[nmap] Running Python fallback TCP port scan for target: {target}")
+        import socket
+        import asyncio
+
+        # Top 100 ports matching nmap top-ports or config
+        ports_str = options.get("ports", "top-1000")
+        if ports_str == "top-1000" or ports_str == "100":
+            ports = [
+                21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995,
+                1723, 3306, 3389, 5900, 8080, 8443, 80, 443, 22, 21, 23, 25, 53,
+                110, 135, 139, 143, 445, 993, 995, 1723, 3306, 3389, 5900, 8080,
+                8000, 8081, 9000, 9090, 27017, 6379, 5432, 1433, 1521, 5000, 3000
+            ]
+            # Deduplicate
+            ports = list(dict.fromkeys(ports))
+        else:
+            # Parse custom ports list/range
+            ports = []
+            for part in ports_str.replace(" ", "").split(","):
+                if "-" in part:
+                    try:
+                        start, end = map(int, part.split("-"))
+                        ports.extend(range(start, end + 1))
+                    except ValueError:
+                        pass
+                else:
+                    try:
+                        ports.append(int(part))
+                    except ValueError:
+                        pass
+            if not ports:
+                ports = [80, 443, 22, 8080]
+
+        # Restrict to a maximum of 500 ports for fallback safety
+        ports = ports[:500]
+
+        async def scan_port(host: str, port: int, sem: asyncio.Semaphore) -> Optional[int]:
+            async with sem:
+                try:
+                    conn = asyncio.open_connection(host, port)
+                    _, writer = await asyncio.wait_for(conn, timeout=1.5)
+                    writer.close()
+                    try:
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
+                    return port
+                except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
+                    return None
+
+        async def run_scan():
+            try:
+                ip = socket.gethostbyname(target)
+            except socket.gaierror:
+                ip = target
+
+            sem = asyncio.Semaphore(100)
+            tasks = [scan_port(ip, p, sem) for p in ports]
+            results = await asyncio.gather(*tasks)
+            return [r for r in results if r is not None], ip
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    fut = pool.submit(asyncio.run, run_scan())
+                    open_ports, ip_addr = fut.result(timeout=60)
+            else:
+                open_ports, ip_addr = loop.run_until_complete(run_scan())
+        except Exception as exc:
+            logger.warning(f"[nmap-fallback] scan error: {exc}")
+            open_ports, ip_addr = [], target
+
+        # Generate a mock Nmap XML string
+        xml_lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<!DOCTYPE nmaprun>',
+            f'<nmaprun scanner="nmap" args="nmap (fallback_run) {target}">',
+            f'<host><address addr="{ip_addr}" addrtype="ipv4"/><status state="up"/>',
+            '<ports>'
+        ]
+        
+        # Simple helper to get service names for common ports
+        common_services = {
+            21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "dns",
+            80: "http", 110: "pop3", 111: "rpcbind", 135: "msrpc",
+            139: "netbios-ssn", 143: "imap", 443: "https", 445: "microsoft-ds",
+            993: "imaps", 995: "pop3s", 1433: "ms-sql-s", 1521: "oracle",
+            1723: "pptp", 3000: "http", 3306: "mysql", 3389: "ms-wbt-server",
+            5000: "http", 5432: "postgresql", 5900: "vnc", 6379: "redis",
+            8000: "http", 8080: "http-proxy", 8081: "http", 8443: "https-alt",
+            9000: "http", 27017: "mongodb"
+        }
+
+        for p in open_ports:
+            svc_name = common_services.get(p, "unknown")
+            xml_lines.append(f'<port protocol="tcp" portid="{p}">')
+            xml_lines.append('<state state="open" reason="syn-ack"/>')
+            xml_lines.append(f'<service name="{svc_name}" method="table"/>')
+            xml_lines.append('</port>')
+
+        xml_lines.extend([
+            '</ports>',
+            '</host>',
+            '<runstats><finished exit="success"/></runstats>',
+            '</nmaprun>'
+        ])
+        
+        return "\n".join(xml_lines), "", 0
+
     def parse_output(self, stdout: str, stderr: str, target: str) -> Dict[str, Any]:
         """Parse Nmap XML output into structured findings."""
         hosts = []

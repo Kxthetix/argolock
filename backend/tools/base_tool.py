@@ -55,6 +55,23 @@ class BaseTool(ABC):
         """
         return None
 
+    def _should_fallback(self, stdout: str, stderr: str, exit_code: int) -> bool:
+        """Check if the command execution output indicates a permission failure or binary block."""
+        if self.name == "nmap":
+            # Check for raw socket or operation permission error
+            if "Couldn't open a raw socket" in stdout or "Couldn't open a raw socket" in stderr:
+                return True
+            if "Operation not permitted" in stdout or "Operation not permitted" in stderr:
+                return True
+            # Check if host discovery blocked
+            if "0 IP addresses (0 hosts up) scanned" in stdout:
+                return True
+        elif self.name == "naabu":
+            # If naabu exited with error or returned 0 ports when it had an error
+            if exit_code not in (0, 1):
+                return True
+        return False
+
     async def run(self, target: str, options: Optional[Dict[str, Any]] = None) -> ToolResult:
         """Execute the tool and return a structured ToolResult."""
         options = options or {}
@@ -64,9 +81,23 @@ class BaseTool(ABC):
             started_at=datetime.utcnow(),
         )
 
+        stdout, stderr, exit_code = "", "", 0
         try:
             if self.execution_mode == "docker" and self.docker_image:
-                stdout, stderr, exit_code = await self._run_docker(target, options)
+                try:
+                    stdout, stderr, exit_code = await self._run_docker(target, options)
+                    if self._should_fallback(stdout, stderr, exit_code):
+                        fallback_result = self.fallback_run(target, options)
+                        if fallback_result is not None:
+                            logger.warning(f"[{self.name}] Docker execution blocked/failed. Running Python fallback probe.")
+                            stdout, stderr, exit_code = fallback_result
+                except Exception as docker_exc:
+                    fallback_result = self.fallback_run(target, options)
+                    if fallback_result is not None:
+                        logger.warning(f"[{self.name}] Docker execution error: {docker_exc}. Running Python fallback probe.")
+                        stdout, stderr, exit_code = fallback_result
+                    else:
+                        raise
             else:
                 # Detect if binary is missing before launching subprocess
                 cmd = self.build_command(target, options)
@@ -87,7 +118,20 @@ class BaseTool(ABC):
                             f"Tool '{binary}' not found in PATH and no fallback is implemented."
                         )
                 else:
-                    stdout, stderr, exit_code = await self._run_subprocess(target, options)
+                    try:
+                        stdout, stderr, exit_code = await self._run_subprocess(target, options)
+                        if self._should_fallback(stdout, stderr, exit_code):
+                            fallback_result = self.fallback_run(target, options)
+                            if fallback_result is not None:
+                                logger.warning(f"[{self.name}] Subprocess execution blocked/failed (exit_code={exit_code}). Running Python fallback probe.")
+                                stdout, stderr, exit_code = fallback_result
+                    except Exception as sub_exc:
+                        fallback_result = self.fallback_run(target, options)
+                        if fallback_result is not None:
+                            logger.warning(f"[{self.name}] Subprocess execution error: {sub_exc}. Running Python fallback probe.")
+                            stdout, stderr, exit_code = fallback_result
+                        else:
+                            raise
 
             result.raw_output = stdout[:50000]  # Cap raw output
             result.exit_code = exit_code
