@@ -22,6 +22,9 @@ class NmapTool(BaseTool):
 
         cmd = [
             "nmap",
+            "--unprivileged",# Assume we don't have raw socket access (forces connect scan, avoids permission issues)
+            "-sT",           # Force TCP connect scan (does not require raw sockets)
+            "-Pn",           # Treat all hosts as online (skips raw socket host discovery pings)
             "-sV",           # Service/version detection
             "-T4",           # Aggressive timing
             "--open",        # Only open ports
