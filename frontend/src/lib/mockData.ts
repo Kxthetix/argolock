@@ -20,11 +20,36 @@ export const DEMO_SCANS: Scan[] = [
     medium_count: 5,
     low_count: 2,
     tool_results: {
-      nmap: { status: 'completed', duration_seconds: 45.2 },
-      nuclei: { status: 'completed', duration_seconds: 312.8 },
-      nikto: { status: 'completed', duration_seconds: 180.4 },
-      subfinder: { status: 'completed', duration_seconds: 28.1 },
-      ai_analysis: { status: 'completed', duration_seconds: 22.5 },
+      nmap: { 
+        status: 'completed', 
+        duration_seconds: 45.2, 
+        exit_code: 0,
+        raw_output: 'Starting Nmap 7.92 ( https://nmap.org ) at 2026-06-22 15:42\nNmap scan report for testphp.vulnweb.com (44.228.249.3)\nHost is up (0.052s latency).\n\nPORT   STATE SERVICE\n80/tcp open  http\n\nNmap done: 1 IP address (1 host up) scanned in 45.20 seconds' 
+      },
+      nuclei: { 
+        status: 'completed', 
+        duration_seconds: 312.8, 
+        exit_code: 0,
+        raw_output: '[CVE-2020-14181] [http] [info] http://testphp.vulnweb.com/rest/user\n[missing-secure-headers] [http] [medium] http://testphp.vulnweb.com\n[cors-misconfig] [http] [low] http://testphp.vulnweb.com\n[xss-reflected] [http] [high] http://testphp.vulnweb.com/login.php' 
+      },
+      nikto: { 
+        status: 'completed', 
+        duration_seconds: 180.4, 
+        exit_code: 0,
+        raw_output: '- Nikto v2.1.6\n---------------------------------------------------------------------------\n+ Target IP:          44.228.249.3\n+ Target Hostname:    testphp.vulnweb.com\n+ Target Port:        80\n+ OS:                 Linux\n+ Web Server:         Apache/2.4.41 (Ubuntu)\n---------------------------------------------------------------------------\n+ Server leaks version information: Apache/2.4.41\n+ Allowed HTTP Methods: GET, HEAD, POST, OPTIONS\n+ Anti-clickjacking X-Frame-Options header is not present.' 
+      },
+      subfinder: { 
+        status: 'completed', 
+        duration_seconds: 28.1, 
+        exit_code: 0,
+        raw_output: 'testphp.vulnweb.com\nadmin.vulnweb.com\napi.vulnweb.com\ndev.vulnweb.com' 
+      },
+      ai_analysis: { 
+        status: 'completed', 
+        duration_seconds: 22.5, 
+        exit_code: 0,
+        raw_output: 'AI Analysis Completed successfully.\nGenerated executive summary and mapped 14 findings to secure code remediations.' 
+      },
     },
     exploitation_stages: {
       web_app: { name: 'Web Application Exploits', status: 'skipped', findings_count: 0 },
@@ -49,10 +74,30 @@ export const DEMO_SCANS: Scan[] = [
     medium_count: 3,
     low_count: 1,
     tool_results: {
-      nmap: { status: 'completed', duration_seconds: 30.1 },
-      nuclei: { status: 'completed', duration_seconds: 280.5 },
-      sqlmap: { status: 'completed', duration_seconds: 145.2 },
-      ai_analysis: { status: 'completed', duration_seconds: 18.9 },
+      nmap: { 
+        status: 'completed', 
+        duration_seconds: 30.1, 
+        exit_code: 0,
+        raw_output: 'Starting Nmap 7.92...\nNmap scan report for api.example-corp.io (13.224.29.4)\nPORT    STATE SERVICE\n443/tcp open  https\n22/tcp  open  ssh' 
+      },
+      nuclei: { 
+        status: 'completed', 
+        duration_seconds: 280.5, 
+        exit_code: 0,
+        raw_output: '[ssh-weak-ciphers] [network] [medium] api.example-corp.io:22\n[cve-2021-41773] [http] [critical] https://api.example-corp.io/cgi-bin/%%32%65%%32%65/' 
+      },
+      sqlmap: { 
+        status: 'completed', 
+        duration_seconds: 145.2, 
+        exit_code: 0,
+        raw_output: 'sqlmap/1.6.2 - automatic SQL injection tool\n[INFO] testing connection to the target URL\n[INFO] checking if the target URL is stable\n[INFO] heuristic test shows DBMS is PostgreSQL\n[INFO] parameter "id" is vulnerable to boolean-based blind SQL injection' 
+      },
+      ai_analysis: { 
+        status: 'completed', 
+        duration_seconds: 18.9, 
+        exit_code: 0,
+        raw_output: 'AI Analysis Completed successfully.' 
+      },
     },
     exploitation_stages: {
       web_app: { name: 'Web Application Exploits', status: 'completed', findings_count: 1, summary: 'SQLmap verified SQL injection in login form.' },

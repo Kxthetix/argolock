@@ -18,6 +18,7 @@ export function ScanDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'progress' | 'findings' | 'logs'>('progress');
   const [severityFilter, setSeverityFilter] = useState<string>('');
+  const [expandedTool, setExpandedTool] = useState<string | null>(null);
 
   const loadScan = useCallback(async () => {
     if (!id) return;
@@ -144,29 +145,89 @@ export function ScanDetailPage() {
             <div className="card-title">Tool Execution</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {Object.entries(scan.tool_results).map(([tool, result]: [string, any]) => (
-              <div key={tool} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '10px 14px', background: 'var(--bg-elevated)',
-                borderRadius: 8, border: '1px solid var(--border)',
-              }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                  background: result.status === 'completed' ? 'var(--accent-green)'
-                    : result.status === 'failed' ? 'var(--sev-critical)'
-                    : result.status === 'running' ? 'var(--accent-cyan)'
-                    : 'var(--text-muted)',
-                  boxShadow: result.status === 'running' ? '0 0 8px var(--accent-cyan)' : 'none',
-                }} />
-                <div style={{ flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600 }}>
-                  {tool}
+            {Object.entries(scan.tool_results).map(([tool, result]: [string, any]) => {
+              const isExpanded = expandedTool === tool;
+              return (
+                <div key={tool} style={{
+                  display: 'flex', flexDirection: 'column',
+                  background: 'var(--bg-elevated)',
+                  borderRadius: 8, border: '1px solid var(--border)',
+                  overflow: 'hidden',
+                }}>
+                  <div 
+                    onClick={() => setExpandedTool(isExpanded ? null : tool)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: result.status === 'completed' ? 'var(--accent-green)'
+                        : result.status === 'failed' ? 'var(--sev-critical)'
+                        : result.status === 'running' ? 'var(--accent-cyan)'
+                        : 'var(--text-muted)',
+                      boxShadow: result.status === 'running' ? '0 0 8px var(--accent-cyan)' : 'none',
+                    }} />
+                    <div style={{ flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 600 }}>
+                      {tool}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                      <span>
+                        {result.status}
+                        {result.duration_seconds ? ` · ${result.duration_seconds.toFixed(1)}s` : ''}
+                      </span>
+                      <span style={{ fontSize: 9, opacity: 0.6 }}>
+                        {isExpanded ? '▲' : '▼'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{
+                      padding: '12px 14px',
+                      background: 'rgba(0, 0, 0, 0.25)',
+                      borderTop: '1px solid var(--border)',
+                      fontSize: 12,
+                      fontFamily: 'JetBrains Mono, monospace',
+                    }}>
+                      {result.error && (
+                        <div style={{ color: 'var(--sev-critical)', marginBottom: 8, fontWeight: 600 }}>
+                          Error: {result.error}
+                        </div>
+                      )}
+                      {result.exit_code !== undefined && (
+                        <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>
+                          Exit Code: {result.exit_code}
+                        </div>
+                      )}
+                      {result.raw_output ? (
+                        <pre style={{
+                          margin: 0,
+                          padding: 10,
+                          background: 'rgba(0,0,0,0.3)',
+                          borderRadius: 6,
+                          maxHeight: 250,
+                          overflowY: 'auto',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-all',
+                          color: 'var(--text-primary)',
+                          fontSize: '11px',
+                          lineHeight: '1.4',
+                        }}>
+                          {result.raw_output}
+                        </pre>
+                      ) : (
+                        <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          No raw output captured.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  {result.status}
-                  {result.duration_seconds ? ` · ${result.duration_seconds.toFixed(1)}s` : ''}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
