@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IS_DEMO, API_BASE } from '../lib/api';
+import { API_BASE, authApi } from '../lib/api';
+import { OTPModal } from '../components/OTPModal';
 
 export function Login() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // OTP Verification Modal States
+  const [isOtpOpen, setIsOtpOpen] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
+
   const navigate = useNavigate();
 
   // Redirect to dashboard if already logged in
@@ -32,49 +39,45 @@ export function Login() {
     setError('');
     setSuccessMsg('');
 
-    if (IS_DEMO) {
-      // Simulate auth locally for standalone static builds
-      setTimeout(() => {
-        localStorage.setItem('auth_token', 'mock-demo-jwt-token');
-        localStorage.setItem('auth_email', email);
-        window.location.href = '/';
-      }, 600);
-      return;
-    }
-
     try {
-      const endpoint = `${API_BASE}/auth/login`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      let data: any = {};
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
+      if (isSignUp) {
+        if (!name) {
+          setError('Please enter your display name');
+          setLoading(false);
+          return;
+        }
+        // Register user via API
+        await authApi.register(email, password, name);
       } else {
-        throw new Error(`Server error (${response.status}): Invalid response format`);
+        // Login user via API to verify credentials
+        await authApi.login(email, password);
       }
 
-      if (!response.ok) {
-        throw new Error(data.detail || 'Authentication failed');
-      }
-
-      // Save credentials
-      localStorage.setItem('auth_token', data.access_token);
-      localStorage.setItem('auth_email', data.email);
-
-      // Redirect
-      window.location.href = '/';
+      // If credentials are valid or user is registered, trigger OTP code
+      await authApi.sendOtp(email);
+      setOtpEmail(email);
+      setIsOtpOpen(true);
     } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
+      setError(err.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOtpVerifySuccess = (token: string, verifiedEmail: string) => {
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_email', verifiedEmail);
+    setIsOtpOpen(false);
+    window.location.href = '/';
+  };
+
+  const handleResendOtp = async () => {
+    await authApi.sendOtp(otpEmail);
+  };
+
+  const handleOAuthLogin = (provider: 'google' | 'github') => {
+    const base = API_BASE.startsWith('http') ? API_BASE : `${window.location.origin}${API_BASE}`;
+    window.location.href = `${base}/auth/${provider}`;
   };
 
   const scrollToSection = (id: string) => {
@@ -123,6 +126,13 @@ export function Login() {
           border-color: rgba(168, 85, 247, 0.4) !important;
           box-shadow: 0 15px 35px rgba(168, 85, 247, 0.1);
         }
+        .oauth-btn {
+          transition: all 0.2s ease;
+        }
+        .oauth-btn:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+          border-color: rgba(255, 255, 255, 0.2) !important;
+        }
       `}</style>
 
       {/* ── Background Glowing Blurs ── */}
@@ -167,10 +177,10 @@ export function Login() {
           margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'between',
+          justifyContent: 'space-between',
         }}>
           {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '24px' }}>🛡️</span>
             <span style={{
               fontSize: '20px',
@@ -251,7 +261,7 @@ export function Login() {
             letterSpacing: '0.5px',
             textTransform: 'uppercase',
           }}>
-            🛡️ AI-Powered Vulnerability Scanner
+            🛡️ Production-Grade Security Scanner
           </div>
           
           <h1 style={{
@@ -328,7 +338,7 @@ export function Login() {
             boxShadow: '0 10px 40px rgba(0, 0, 0, 0.4), 0 0 40px rgba(99, 102, 241, 0.05)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '24px',
+            gap: '20px',
           }}>
             {/* Header / Toggle */}
             <div style={{ textAlign: 'center' }}>
@@ -377,13 +387,102 @@ export function Login() {
               <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#fff', letterSpacing: '-0.3px' }}>
                 {isSignUp ? 'Create Security Account' : 'Security Portal Access'}
               </h2>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', opacity: 0.6 }}>
+              <p style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', marginTop: '4px' }}>
                 {isSignUp ? 'Register to manage assets & scan queues' : 'Sign in to run scans & generate reports'}
               </p>
             </div>
 
+            {/* OAuth Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => handleOAuthLogin('google')}
+                className="oauth-btn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                </svg>
+                <span>Continue with Google</span>
+              </button>
+              <button
+                onClick={() => handleOAuthLogin('github')}
+                className="oauth-btn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  width: '100%',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.137 20.162 22 16.418 22 12c0-5.523-4.477-10-10-10z" fill="#FFFFFF"/>
+                </svg>
+                <span>Continue with GitHub</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
+              <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.35)', fontWeight: 600, textTransform: 'uppercase' }}>or continue with</span>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(255, 255, 255, 0.08)' }} />
+            </div>
+
             {/* Auth Form */}
             <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {isSignUp && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'rgba(5, 5, 16, 0.6)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      padding: '12px 14px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none',
+                      transition: 'border-color 0.2s',
+                    }}
+                    onFocus={(e) => { e.target.style.borderColor = '#6366f1'; }}
+                    onBlur={(e) => { e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'; }}
+                  />
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Email Address
@@ -437,20 +536,6 @@ export function Login() {
                 />
               </div>
 
-              {IS_DEMO && (
-                <div style={{
-                  background: 'rgba(99, 102, 241, 0.08)',
-                  border: '1px dashed rgba(99, 102, 241, 0.25)',
-                  borderRadius: '8px',
-                  padding: '10px',
-                  textAlign: 'center',
-                  fontSize: '11px',
-                  color: '#818cf8',
-                }}>
-                  💡 <strong>Demo Instance:</strong> Any mock email and a 6+ char password will bypass authentication.
-                </div>
-              )}
-
               {error && (
                 <div style={{
                   background: 'rgba(255, 59, 48, 0.08)',
@@ -461,6 +546,19 @@ export function Login() {
                   fontSize: '11px',
                 }}>
                   ⚠️ {error}
+                </div>
+              )}
+
+              {successMsg && (
+                <div style={{
+                  background: 'rgba(52, 199, 89, 0.08)',
+                  border: '1px solid rgba(52, 199, 89, 0.2)',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  color: '#34c759',
+                  fontSize: '11px',
+                }}>
+                  ✅ {successMsg}
                 </div>
               )}
 
@@ -481,7 +579,7 @@ export function Login() {
                   boxShadow: '0 4px 15px rgba(99, 102, 241, 0.2)',
                 }}
               >
-                {loading ? 'Authenticating...' : isSignUp ? 'Create Account' : 'Enter Portal'}
+                {loading ? 'Processing...' : isSignUp ? 'Create Account & Verify' : 'Sign In & Verify'}
               </button>
             </form>
           </div>
@@ -818,6 +916,15 @@ export function Login() {
           </div>
         </div>
       </footer>
+
+      {/* OTP Verification Modal */}
+      <OTPModal
+        email={otpEmail}
+        isOpen={isOtpOpen}
+        onClose={() => setIsOtpOpen(false)}
+        onVerifySuccess={handleOtpVerifySuccess}
+        onResendOtp={handleResendOtp}
+      />
     </div>
   );
 }

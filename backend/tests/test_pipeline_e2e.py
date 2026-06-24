@@ -114,6 +114,7 @@ async def test_celery_chain_e2e(client):
     await db["scans"].insert_one(scan_doc)
     
     # Trigger the chain
+    scan_doc.pop("_id", None)
     run_full_pipeline(scan_id, scan_doc)
     
     # Check if the scan completed successfully in DB

@@ -99,3 +99,68 @@ async def test_protected_me_route(client):
     assert "password_hash" not in data  # Assert sensitive hash is excluded
     assert "id" in data
 
+
+@pytest.mark.asyncio(scope="session")
+async def test_explicit_registration(client):
+    """Verify that a user can explicitly register with a name, email, and password."""
+    email = "register_test@argolock.com"
+    password = "newpassword123"
+    name = "Register Test"
+
+    db = get_db()
+    await db["users"].delete_one({"email": email})
+
+    payload = {"name": name, "email": email, "password": password}
+    response = await client.post("/api/auth/register", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == email
+    assert "access_token" in data
+
+    # Verify user fields in DB
+    user = await db["users"].find_one({"email": email})
+    assert user is not None
+    assert user["name"] == name
+    assert user["auth_provider"] == "email"
+
+
+@pytest.mark.asyncio(scope="session")
+async def test_otp_send_and_verify(client):
+    """Verify the OTP send, DB storage, and verification flow."""
+    email = "otp_test@argolock.com"
+
+    db = get_db()
+    await db["users"].delete_one({"email": email})
+    await db["otp_codes"].delete_one({"email": email})
+
+    # 1. Send OTP
+    send_payload = {"email": email}
+    send_response = await client.post("/api/auth/otp/send", json=send_payload)
+    assert send_response.status_code == 200
+    assert send_response.json()["email"] == email
+
+    # 2. Check OTP generated in DB
+    otp_record = await db["otp_codes"].find_one({"email": email})
+    assert otp_record is not None
+    code = otp_record["code"]
+    assert len(code) == 6
+
+    # 3. Verify incorrect OTP -> 400
+    verify_payload_bad = {"email": email, "code": "000000"}
+    verify_response_bad = await client.post("/api/auth/otp/verify", json=verify_payload_bad)
+    assert verify_response_bad.status_code == 400
+
+    # 4. Verify correct OTP -> 200
+    verify_payload_good = {"email": email, "code": code}
+    verify_response_good = await client.post("/api/auth/otp/verify", json=verify_payload_good)
+    assert verify_response_good.status_code == 200
+    data = verify_response_good.json()
+    assert data["email"] == email
+    assert "access_token" in data
+
+    # 5. Verify email_verified is True in user document
+    user = await db["users"].find_one({"email": email})
+    assert user is not None
+    assert user["email_verified"] is True
+
+

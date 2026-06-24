@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Scan, FileText, Activity, Shield, Cpu
 } from 'lucide-react';
+import { authApi } from '../lib/api';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -12,7 +13,23 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  const email = localStorage.getItem('auth_email') || 'User';
+  const [user, setUser] = useState<{ name?: string; email: string; avatar_url?: string } | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const data = await authApi.me();
+        setUser(data);
+      } catch (err) {
+        console.error('Failed to fetch user profile:', err);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  const email = user?.email || localStorage.getItem('auth_email') || 'User';
+  const displayName = user?.name || email.split('@')[0];
+  const avatarUrl = user?.avatar_url;
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
@@ -82,10 +99,41 @@ export function Sidebar() {
             whiteSpace: 'nowrap',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '8px'
           }} title={email}>
-            <span>👤</span>
-            <span>{email}</span>
+            {avatarUrl ? (
+              <img 
+                src={avatarUrl} 
+                alt={displayName} 
+                style={{ 
+                  width: '24px', 
+                  height: '24px', 
+                  borderRadius: '50%', 
+                  objectFit: 'cover',
+                  border: '1px solid rgba(255, 255, 255, 0.1)'
+                }} 
+              />
+            ) : (
+              <div style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                background: 'rgba(99, 102, 241, 0.15)',
+                color: '#818cf8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '11px',
+                fontWeight: 600,
+                border: '1px solid rgba(99, 102, 241, 0.25)'
+              }}>
+                {displayName.substring(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <span style={{ fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{displayName}</span>
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{email}</span>
+            </div>
           </div>
           <button
             onClick={handleLogout}

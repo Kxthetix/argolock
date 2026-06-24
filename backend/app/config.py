@@ -50,5 +50,19 @@ class Settings(BaseSettings):
     max_concurrent_scans: int = 3
     rate_limit_per_minute: int = 10
 
+    # ── OAuth ─────────────────────────────────────────────────────────────────
+    google_client_id: Optional[str] = None
+    google_client_secret: Optional[str] = None
+    github_client_id: Optional[str] = None
+    github_client_secret: Optional[str] = None
+    frontend_url: str = "http://localhost:5173"
+
+    # ── OTP ───────────────────────────────────────────────────────────────────
+    otp_expiry_minutes: int = 10
+    smtp_host: Optional[str] = None
+    smtp_port: int = 587
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+
 
 settings = Settings()

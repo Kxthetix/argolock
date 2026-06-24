@@ -7,7 +7,7 @@ import { ScanDetailPage } from './pages/ScanDetailPage';
 import { FindingsPage } from './pages/FindingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { Login } from './pages/Login';
-import { IS_DEMO } from './lib/api';
+import { OAuthCallback } from './pages/OAuthCallback';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('auth_token');
@@ -21,8 +21,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Login Route */}
+        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<OAuthCallback />} />
 
         {/* Protected Application Routes */}
         <Route
@@ -30,33 +31,7 @@ export default function App() {
           element={
             <AuthGuard>
               <div className="app-layout">
-                {IS_DEMO && (
-                  <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    zIndex: 1000,
-                    background: 'linear-gradient(90deg, #7c3aed, #4f46e5)',
-                    color: '#fff',
-                    textAlign: 'center',
-                    padding: '8px 16px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    letterSpacing: 0.3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}>
-                    <span style={{ fontSize: 14 }}>🔒</span>
-                    <span>
-                      <strong>DEMO MODE</strong> — All features are active with realistic sample data.
-                      Deploy with a backend to run real scans.
-                    </span>
-                  </div>
-                )}
-                <div style={{ paddingTop: IS_DEMO ? 36 : 0, display: 'flex', flex: 1 }}>
+                <div style={{ display: 'flex', flex: 1 }}>
                   <Sidebar />
                   <main className="main-content">
                     <Routes>

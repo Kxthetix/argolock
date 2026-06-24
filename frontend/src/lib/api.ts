@@ -1,17 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// API client with automatic demo/mock fallback.
-// When VITE_API_URL is not set and the backend is unreachable the app
-// transparently serves realistic mock data so every UI feature works.
+// ArgoLock API Client — Production HTTP client for all backend communication.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { DEMO_SCANS, DEMO_FINDINGS, DEMO_REPORTS } from './mockData';
-
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
-// ── Demo mode detection ───────────────────────────────────────────────────────
-// Treat the app as being in "demo mode" when there is no VITE_API_URL env var
-// (i.e., plain Vercel / static deployment without a backend).
-const IS_DEMO = !import.meta.env.VITE_API_URL;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -109,22 +100,8 @@ export interface Report {
   risk_rating: string;
 }
 
-// ── Demo scan state (persisted in sessionStorage) ────────────────────────────
-function getDemoScans(): Scan[] {
-  try {
-    const raw = sessionStorage.getItem('argolock_demo_scans');
-    if (raw) return JSON.parse(raw) as Scan[];
-  } catch (_) {}
-  return [...DEMO_SCANS];
-}
+// ── HTTP Client ───────────────────────────────────────────────────────────────
 
-function saveDemoScans(scans: Scan[]) {
-  try { sessionStorage.setItem('argolock_demo_scans', JSON.stringify(scans)); } catch (_) {}
-}
-
-let _demoScanCounter = 100;
-
-// ── Real HTTP client ──────────────────────────────────────────────────────────
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem('auth_token');
   const headers: Record<string, string> = {
@@ -149,244 +126,48 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// ── Simulated async delay ─────────────────────────────────────────────────────
-function delay(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+// ── Auth API ──────────────────────────────────────────────────────────────────
 
-// ── Mock API implementation ───────────────────────────────────────────────────
-const mockApi = {
-  scans: {
-    create: async (data: CreateScanRequest) => {
-      await delay(900);
-      const newId = `scan-demo-${++_demoScanCounter}`;
-      const now = new Date().toISOString();
-      const newScan: Scan = {
-        id: newId,
-        name: data.name || `Scan of ${data.scope.target}`,
-        scope: data.scope,
-        config: data.config || {},
-        status: 'pending',
-        progress_percent: 0,
-        created_at: now,
-        finding_count: 0,
-        critical_count: 0,
-        high_count: 0,
-        medium_count: 0,
-        low_count: 0,
-        exploitation_stages: {
-          web_app: { name: 'Web Application Exploits', status: 'pending', findings_count: 0 },
-          network: { name: 'Network Exploits', status: 'pending', findings_count: 0 },
-          system_host: { name: 'System & Host Exploits', status: 'pending', findings_count: 0 },
-          personnel_social: { name: 'Personnel & Social Engineering Exploits', status: 'pending', findings_count: 0 },
-        },
-      };
-      const scans = getDemoScans();
-      scans.unshift(newScan);
-      saveDemoScans(scans);
+export const authApi = {
+  login: (email: string, password: string) =>
+    request<{ access_token: string; token_type: string; email: string }>(
+      '/auth/login',
+      { method: 'POST', body: JSON.stringify({ email, password }) }
+    ),
 
-      // Simulate the scan progressing over time
-      _simulateScanProgress(newId);
+  register: (email: string, password: string, name: string) =>
+    request<{ access_token: string; token_type: string; email: string }>(
+      '/auth/register',
+      { method: 'POST', body: JSON.stringify({ email, password, name }) }
+    ),
 
-      return { scan_id: newId, status: 'pending', message: 'Scope validated. Scan queued. (Demo mode)' };
-    },
+  sendOtp: (email: string) =>
+    request<{ message: string }>('/auth/otp/send', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
 
-    list: async (skip = 0, limit = 20) => {
-      await delay(200);
-      const all = getDemoScans();
-      return { scans: all.slice(skip, skip + limit), skip, limit };
-    },
+  verifyOtp: (email: string, code: string) =>
+    request<{ access_token: string; token_type: string; email: string }>(
+      '/auth/otp/verify',
+      { method: 'POST', body: JSON.stringify({ email, code }) }
+    ),
 
-    get: async (id: string) => {
-      await delay(150);
-      const scans = getDemoScans();
-      const scan = scans.find(s => s.id === id);
-      if (!scan) throw new Error('Scan not found');
-      return scan;
-    },
+  googleUrl: () => `${API_BASE}/auth/google`,
+  githubUrl: () => `${API_BASE}/auth/github`,
 
-    findings: async (id: string, severity?: string) => {
-      await delay(200);
-      let findings = DEMO_FINDINGS.filter(f => f.scan_id === id);
-      if (severity) findings = findings.filter(f => f.severity === severity);
-      return { findings, total: findings.length };
-    },
-
-    cancel: async (id: string) => {
-      await delay(300);
-      const scans = getDemoScans();
-      const scan = scans.find(s => s.id === id);
-      if (scan) {
-        scan.status = 'cancelled';
-        scan.completed_at = new Date().toISOString();
-        saveDemoScans(scans);
-      }
-      return { message: 'Scan cancelled (Demo mode)' };
-    },
-  },
-
-  findings: {
-    list: async (params?: { severity?: string; skip?: number; limit?: number }) => {
-      await delay(200);
-      let findings = [...DEMO_FINDINGS];
-      if (params?.severity) findings = findings.filter(f => f.severity === params.severity);
-      const skip = params?.skip || 0;
-      const limit = params?.limit || 50;
-      return { findings: findings.slice(skip, skip + limit), total: findings.length };
-    },
-    get: async (id: string) => {
-      await delay(150);
-      const f = DEMO_FINDINGS.find(f => f.id === id);
-      if (!f) throw new Error('Finding not found');
-      return f;
-    },
-  },
-
-  reports: {
-    get: async (scanId: string) => {
-      await delay(250);
-      const r = DEMO_REPORTS[scanId];
-      if (!r) throw new Error('Report not found');
-      return r;
-    },
-    downloadPdfUrl: (scanId: string) => `${API_BASE}/reports/${scanId}/download/pdf`,
-    downloadJsonUrl: (scanId: string) => `${API_BASE}/reports/${scanId}/download/json`,
-    downloadPdfAbsUrl: (scanId: string) => `http://localhost:8000/api/reports/${scanId}/download/pdf`,
-    downloadJsonAbsUrl: (scanId: string) => `http://localhost:8000/api/reports/${scanId}/download/json`,
-  },
-
-  health: async () => {
-    await delay(100);
-    return { status: 'demo' };
-  },
+  me: () => request<any>('/auth/me'),
 };
 
-// ── Scan progress simulator ───────────────────────────────────────────────────
-function _simulateScanProgress(scanId: string) {
-  const scans = getDemoScans();
-  const initialScan = scans.find(s => s.id === scanId);
-  const hasExploit = initialScan?.config?.enable_exploitation ?? false;
+// ── Scans API ─────────────────────────────────────────────────────────────────
 
-  const phases = hasExploit
-    ? (['recon', 'scanning', 'exploiting', 'ai_analysis', 'reporting', 'completed'] as const)
-    : (['recon', 'scanning', 'ai_analysis', 'reporting', 'completed'] as const);
+// ── Findings API ──────────────────────────────────────────────────────────────
 
-  const phaseDurations = hasExploit
-    ? [8000, 15000, 12000, 6000, 4000, 0]
-    : [8000, 15000, 6000, 4000, 0];
+// ── Reports API ───────────────────────────────────────────────────────────────
 
-  const phaseTargetProgress = hasExploit
-    ? [20, 60, 75, 90, 98, 100]
-    : [20, 75, 90, 98, 100];
+// ── Health API ────────────────────────────────────────────────────────────────
 
-  let phaseIndex = 0;
-
-  function tick() {
-    const currentScans = getDemoScans();
-    const scan = currentScans.find(s => s.id === scanId);
-    if (!scan || scan.status === 'cancelled') return;
-
-    const targetPhase = phases[phaseIndex];
-    const targetPct = phaseTargetProgress[phaseIndex];
-
-    scan.status = phaseIndex < phases.length - 1 ? targetPhase : 'completed';
-    scan.current_phase = targetPhase;
-
-    // Advance progress smoothly
-    const step = Math.min(targetPct - scan.progress_percent, 5);
-    scan.progress_percent = Math.min(scan.progress_percent + Math.max(step, 1), targetPct);
-
-    // Simulate sub-stages within the exploitation phase
-    if (targetPhase === 'exploiting' && scan.exploitation_stages) {
-      const pct = scan.progress_percent;
-      if (pct >= 60 && pct < 63) {
-        scan.exploitation_stages.web_app.status = 'running';
-        scan.exploitation_stages.web_app.summary = 'Testing forms and parameters for injection...';
-        scan.current_phase = 'Exploiting: Web Application Exploits';
-      } else if (pct >= 63 && pct < 66) {
-        scan.exploitation_stages.web_app.status = 'completed';
-        scan.exploitation_stages.web_app.findings_count = 1;
-        scan.exploitation_stages.web_app.summary = 'Web application vulnerability check complete.';
-        scan.exploitation_stages.network.status = 'running';
-        scan.exploitation_stages.network.summary = 'Checking open ports and default configurations...';
-        scan.current_phase = 'Exploiting: Network Exploits';
-      } else if (pct >= 66 && pct < 70) {
-        scan.exploitation_stages.network.status = 'completed';
-        scan.exploitation_stages.network.findings_count = 1;
-        scan.exploitation_stages.network.summary = 'Exposed network ports audit complete.';
-        scan.exploitation_stages.system_host.status = 'running';
-        scan.exploitation_stages.system_host.summary = 'Comparing version banners against CVE catalogs...';
-        scan.current_phase = 'Exploiting: System & Host Exploits';
-      } else if (pct >= 70 && pct < 75) {
-        scan.exploitation_stages.system_host.status = 'completed';
-        scan.exploitation_stages.system_host.findings_count = 1;
-        scan.exploitation_stages.system_host.summary = 'System OS and server component check complete.';
-        scan.exploitation_stages.personnel_social.status = 'running';
-        scan.exploitation_stages.personnel_social.summary = 'Checking DNS records for email security configurations...';
-        scan.current_phase = 'Exploiting: Personnel & Social Engineering Exploits';
-      } else if (pct >= 75) {
-        scan.exploitation_stages.personnel_social.status = 'completed';
-        scan.exploitation_stages.personnel_social.findings_count = 2;
-        scan.exploitation_stages.personnel_social.summary = 'DNS SPF/DMARC audit and credential exposure checks complete.';
-        scan.current_phase = 'Exploiting Complete';
-      }
-    }
-
-    if (phaseIndex === phases.length - 1) {
-      // Completed
-      scan.status = 'completed';
-      scan.progress_percent = 100;
-      scan.completed_at = new Date().toISOString();
-      scan.finding_count = hasExploit ? 8 : 3;
-      scan.critical_count = hasExploit ? 2 : 0;
-      scan.high_count = hasExploit ? 2 : 1;
-      scan.medium_count = hasExploit ? 4 : 2;
-      scan.low_count = 0;
-      scan.tool_results = {
-        nmap: { status: 'completed', duration_seconds: 32.1 },
-        nuclei: { status: 'completed', duration_seconds: 210.4 },
-        sqlmap: hasExploit ? { status: 'completed', duration_seconds: 124.5 } : undefined,
-        dns_sec_audit: hasExploit ? { status: 'completed', duration_seconds: 8.3 } : undefined,
-        ai_analysis: { status: 'completed', duration_seconds: 14.8 },
-      };
-      saveDemoScans(currentScans);
-      return;
-    }
-
-    saveDemoScans(currentScans);
-
-    if (scan.progress_percent >= targetPct) {
-      phaseIndex++;
-      setTimeout(tick, phaseDurations[phaseIndex] / 10);
-    } else {
-      setTimeout(tick, 800);
-    }
-  }
-
-  // Start after a brief pending delay
-  setTimeout(tick, 2000);
-}
-
-// ── Public API (auto-selects real or mock) ────────────────────────────────────
-export const api = IS_DEMO ? {
-  scans: {
-    create: (data: CreateScanRequest) => mockApi.scans.create(data),
-    list: (skip = 0, limit = 20) => mockApi.scans.list(skip, limit),
-    get: (id: string) => mockApi.scans.get(id),
-    findings: (id: string, severity?: string) => mockApi.scans.findings(id, severity),
-    cancel: (id: string) => mockApi.scans.cancel(id),
-  },
-  findings: {
-    list: (params?: { severity?: string; skip?: number; limit?: number }) => mockApi.findings.list(params),
-    get: (id: string) => mockApi.findings.get(id),
-  },
-  reports: {
-    get: (scanId: string) => mockApi.reports.get(scanId),
-    downloadPdfUrl: (scanId: string) => mockApi.reports.downloadPdfUrl(scanId),
-    downloadJsonUrl: (scanId: string) => mockApi.reports.downloadJsonUrl(scanId),
-    downloadPdfAbsUrl: (scanId: string) => mockApi.reports.downloadPdfAbsUrl(scanId),
-    downloadJsonAbsUrl: (scanId: string) => mockApi.reports.downloadJsonAbsUrl(scanId),
-  },
-  health: () => mockApi.health(),
-} : {
+export const api = {
   scans: {
     create: (data: CreateScanRequest) =>
       request<{ scan_id: string; status: string; message: string }>('/scans', {
@@ -394,7 +175,9 @@ export const api = IS_DEMO ? {
         body: JSON.stringify(data),
       }),
     list: (skip = 0, limit = 20) =>
-      request<{ scans: Scan[]; skip: number; limit: number }>(`/scans?skip=${skip}&limit=${limit}`),
+      request<{ scans: Scan[]; skip: number; limit: number }>(
+        `/scans?skip=${skip}&limit=${limit}`
+      ),
     get: (id: string) => request<Scan>(`/scans/${id}`),
     findings: (id: string, severity?: string) =>
       request<{ findings: Finding[]; total: number }>(
@@ -403,6 +186,7 @@ export const api = IS_DEMO ? {
     cancel: (id: string) =>
       request<{ message: string }>(`/scans/${id}`, { method: 'DELETE' }),
   },
+
   findings: {
     list: (params?: { severity?: string; skip?: number; limit?: number }) => {
       const q = new URLSearchParams(params as any).toString();
@@ -410,15 +194,25 @@ export const api = IS_DEMO ? {
     },
     get: (id: string) => request<Finding>(`/findings/${id}`),
   },
+
   reports: {
     get: (scanId: string) => request<Report>(`/reports/${scanId}`),
-    downloadPdfUrl: (scanId: string) => `${API_BASE}/reports/${scanId}/download/pdf`,
-    downloadJsonUrl: (scanId: string) => `${API_BASE}/reports/${scanId}/download/json`,
-    downloadPdfAbsUrl: (scanId: string) => `http://localhost:8000/api/reports/${scanId}/download/pdf`,
-    downloadJsonAbsUrl: (scanId: string) => `http://localhost:8000/api/reports/${scanId}/download/json`,
+    downloadPdfUrl: (scanId: string) =>
+      `${API_BASE}/reports/${scanId}/download/pdf`,
+    downloadJsonUrl: (scanId: string) =>
+      `${API_BASE}/reports/${scanId}/download/json`,
+    downloadPdfAbsUrl: (scanId: string) => {
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      return `${base}/reports/${scanId}/download/pdf`;
+    },
+    downloadJsonAbsUrl: (scanId: string) => {
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+      return `${base}/reports/${scanId}/download/json`;
+    },
   },
+
   health: () => request<{ status: string }>('/health'),
 };
 
-// Export demo mode flag and API base path for UI banners / authentication
-export { IS_DEMO, API_BASE };
+// Export API base path for direct URL construction
+export { API_BASE };
