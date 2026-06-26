@@ -60,15 +60,21 @@ export function Sidebar() {
         ))}
 
         <div className="nav-section-label" style={{ marginTop: 16 }}>System</div>
-        <div className="nav-item" style={{ cursor: 'default' }}>
+        <NavLink
+          to="/agents"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
           <Cpu className="nav-icon" />
           <span>AI Agents</span>
           <span className="badge badge-blue" style={{ marginLeft: 'auto', fontSize: 9 }}>4 Active</span>
-        </div>
-        <div className="nav-item" style={{ cursor: 'default' }}>
+        </NavLink>
+        <NavLink
+          to="/tool-status"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
           <Activity className="nav-icon" />
           <span>Tool Status</span>
-        </div>
+        </NavLink>
       </nav>
 
       <div className="sidebar-footer">

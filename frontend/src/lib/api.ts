@@ -100,6 +100,43 @@ export interface Report {
   risk_rating: string;
 }
 
+export interface SystemAgent {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  status: 'active' | 'inactive';
+  prompt_file: string;
+}
+
+export interface SystemAgentsResponse {
+  active_provider: string;
+  active_model: string;
+  provider_configured: boolean;
+  openai_configured: boolean;
+  claude_configured: boolean;
+  ollama_configured: boolean;
+  agents: SystemAgent[];
+}
+
+export interface SystemTool {
+  id: string;
+  name: string;
+  phase: string;
+  description: string;
+  binary: string;
+  execution_mode: 'docker' | 'subprocess';
+  docker_image: string | null;
+  status: 'available' | 'fallback' | 'missing';
+  binary_path: string | null;
+  fallback_implemented: boolean;
+}
+
+export interface SystemToolsResponse {
+  execution_mode: string;
+  tools: SystemTool[];
+}
+
 // ── HTTP Client ───────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -212,6 +249,10 @@ export const api = {
   },
 
   health: () => request<{ status: string }>('/health'),
+  system: {
+    agents: () => request<SystemAgentsResponse>('/system/agents'),
+    tools: () => request<SystemToolsResponse>('/system/tools'),
+  },
 };
 
 // Export API base path for direct URL construction

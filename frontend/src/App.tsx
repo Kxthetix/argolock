@@ -8,6 +8,8 @@ import { FindingsPage } from './pages/FindingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { Login } from './pages/Login';
 import { OAuthCallback } from './pages/OAuthCallback';
+import { AgentsPage } from './pages/AgentsPage';
+import { ToolStatusPage } from './pages/ToolStatusPage';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('auth_token');
@@ -40,6 +42,8 @@ export default function App() {
                       <Route path="/scans/:id" element={<ScanDetailPage />} />
                       <Route path="/findings" element={<FindingsPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
+                      <Route path="/agents" element={<AgentsPage />} />
+                      <Route path="/tool-status" element={<ToolStatusPage />} />
                     </Routes>
                   </main>
                 </div>
