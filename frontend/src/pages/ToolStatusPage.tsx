@@ -6,6 +6,28 @@ export function ToolStatusPage() {
   const [data, setData] = useState<SystemToolsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const [purging, setPurging] = useState(false);
+  const [confirmPurge, setConfirmPurge] = useState(false);
+  const [purgeSuccess, setPurgeSuccess] = useState(false);
+
+  const handlePurgeHistory = async () => {
+    setPurging(true);
+    try {
+      await api.system.clearHistory();
+      setPurgeSuccess(true);
+      setConfirmPurge(false);
+      setTimeout(() => {
+        setPurgeSuccess(false);
+        window.location.reload();
+      }, 2000);
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to clear history: ' + (err.message || String(err)));
+    } finally {
+      setPurging(false);
+    }
+  };
 
   useEffect(() => {
     const fetchTools = async () => {
@@ -88,7 +110,67 @@ export function ToolStatusPage() {
             Audit binary installations, execution configs, and Python fallback status across VAPT pipeline stages.
           </p>
         </div>
+
+        {/* Purge button controls */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {confirmPurge ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(255,69,58,0.1)', padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,69,58,0.3)' }}>
+              <span style={{ fontSize: 12, color: '#ff453a', fontWeight: 600 }}>Confirm Purge All Scan Data?</span>
+              <button 
+                className="btn btn-danger btn-sm"
+                onClick={handlePurgeHistory}
+                disabled={purging}
+                style={{ padding: '4px 10px', fontSize: 11, background: '#ff453a' }}
+              >
+                {purging ? 'Purging...' : 'Yes, Delete'}
+              </button>
+              <button 
+                className="btn btn-outline btn-sm" 
+                onClick={() => setConfirmPurge(false)}
+                disabled={purging}
+                style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(255,255,255,0.05)' }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button 
+              className="btn btn-danger btn-sm"
+              onClick={() => setConfirmPurge(true)}
+              style={{
+                background: 'rgba(255,69,58,0.1)',
+                border: '1px solid rgba(255,69,58,0.25)',
+                color: '#ff453a',
+                padding: '8px 16px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Purge Scan History
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Success Banner */}
+      {purgeSuccess && (
+        <div style={{
+          background: 'rgba(48, 209, 88, 0.1)',
+          border: '1px solid rgba(48, 209, 88, 0.3)',
+          borderRadius: 8,
+          padding: '12px 20px',
+          color: '#30d158',
+          fontSize: 14,
+          fontWeight: 600,
+          marginBottom: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10
+        }} className="animate-fadeIn">
+          <CheckCircle style={{ width: 18, height: 18 }} />
+          <span>All scan histories, findings, and reports have been purged successfully! Refreshing database...</span>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="stat-grid" style={{ marginBottom: 32 }}>

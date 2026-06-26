@@ -5,7 +5,7 @@ import { ScanProgress } from '../components/ScanProgress';
 import { SeverityBadge } from '../components/SeverityBadge';
 import {
   Activity, Shield, AlertTriangle, TrendingUp,
-  Plus, ArrowRight, Clock, CheckCircle, XCircle
+  Plus, ArrowRight, Clock, CheckCircle, XCircle, Scan as ScanIcon
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -76,26 +76,31 @@ export function Dashboard() {
       {/* Stat Cards */}
       <div className="stat-grid">
         <div className="stat-card" style={{ '--card-accent': 'var(--primary)' } as any}>
+          <ScanIcon size={20} className="text-muted" style={{ position: 'absolute', top: 24, right: 24, opacity: 0.4 }} />
           <div className="stat-label">Total Scans</div>
           <div className="stat-value">{scans.length}</div>
           <div className="stat-sub">{completedScans} completed</div>
         </div>
         <div className="stat-card" style={{ '--card-accent': '#00d4ff' } as any}>
+          <Activity size={20} className="text-muted" style={{ position: 'absolute', top: 24, right: 24, opacity: 0.5 }} />
           <div className="stat-label">Active Scans</div>
           <div className="stat-value">{activeScans}</div>
           <div className="stat-sub">running now</div>
         </div>
         <div className="stat-card" style={{ '--card-accent': 'var(--sev-critical)' } as any}>
+          <AlertTriangle size={20} className="text-muted" style={{ position: 'absolute', top: 24, right: 24, opacity: 0.4 }} />
           <div className="stat-label">Critical Findings</div>
           <div className="stat-value">{criticalTotal}</div>
           <div className="stat-sub">require immediate action</div>
         </div>
         <div className="stat-card" style={{ '--card-accent': 'var(--sev-high)' } as any}>
+          <Shield size={20} className="text-muted" style={{ position: 'absolute', top: 24, right: 24, opacity: 0.4 }} />
           <div className="stat-label">High Severity</div>
           <div className="stat-value">{highTotal}</div>
           <div className="stat-sub">across all scans</div>
         </div>
         <div className="stat-card" style={{ '--card-accent': 'var(--accent-green)' } as any}>
+          <TrendingUp size={20} className="text-muted" style={{ position: 'absolute', top: 24, right: 24, opacity: 0.4 }} />
           <div className="stat-label">Total Findings</div>
           <div className="stat-value">{totalFindings}</div>
           <div className="stat-sub">AI-analyzed</div>

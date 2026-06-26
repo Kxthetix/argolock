@@ -252,6 +252,7 @@ export const api = {
   system: {
     agents: () => request<SystemAgentsResponse>('/system/agents'),
     tools: () => request<SystemToolsResponse>('/system/tools'),
+    clearHistory: () => request<{ status: string; message: string; purged_counts: Record<string, number> }>('/system/clear-history', { method: 'POST' }),
   },
 };
 

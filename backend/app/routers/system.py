@@ -233,3 +233,24 @@ async def get_tools_status(current_user: Dict[str, Any] = Depends(get_current_us
         "execution_mode": execution_mode,
         "tools": results
     }
+
+
+@router.post("/clear-history")
+async def clear_history(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Delete all documents in scans, findings, reports, and raw_findings collections to clear database history."""
+    from app.database import get_db
+    db = get_db()
+
+    collections = ["scans", "findings", "reports", "raw_findings"]
+    purged_counts = {}
+
+    for coll in collections:
+        result = await db[coll].delete_many({})
+        purged_counts[coll] = result.deleted_count
+
+    return {
+        "status": "success",
+        "message": "Scan history cleared successfully",
+        "purged_counts": purged_counts
+    }
+

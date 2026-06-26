@@ -39,9 +39,12 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-text">🔒 ArgoLock</div>
-        <div className="logo-tagline">AI-Powered VAPT Platform</div>
+      <div className="sidebar-logo" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Shield style={{ width: 22, height: 22, color: 'var(--accent-cyan)', filter: 'drop-shadow(0 0 5px rgba(0, 212, 255, 0.3))' }} />
+          <span className="logo-text" style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '-0.5px' }}>ArgoLock</span>
+        </div>
+        <div className="logo-tagline" style={{ marginTop: '2px' }}>AI-Powered VAPT Platform</div>
       </div>
 
       <nav className="sidebar-nav">
