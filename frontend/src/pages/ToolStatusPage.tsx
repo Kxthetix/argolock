@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, SystemTool, SystemToolsResponse } from '../lib/api';
-import { Activity, CheckCircle, AlertTriangle, XCircle, Terminal, Container, Shield } from 'lucide-react';
+import { Activity, CheckCircle, AlertTriangle, XCircle, Terminal, Container, Shield, Info } from 'lucide-react';
 
 export function ToolStatusPage() {
   const [data, setData] = useState<SystemToolsResponse | null>(null);
@@ -28,19 +28,20 @@ export function ToolStatusPage() {
     return (
       <div className="page-content animate-fadeIn">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Header Skeleton */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="skeleton" style={{ width: 250, height: 36 }} />
             <div className="skeleton" style={{ width: 400, height: 20 }} />
           </div>
-          {/* Stat Grid Skeleton */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
             {[1, 2, 3, 4].map(i => (
               <div key={i} className="skeleton" style={{ height: 100, borderRadius: 12 }} />
             ))}
           </div>
-          {/* Table Skeleton */}
-          <div className="skeleton" style={{ width: '100%', height: 400, borderRadius: 12 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} className="skeleton" style={{ height: 350, borderRadius: 12 }} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -49,10 +50,10 @@ export function ToolStatusPage() {
   if (error) {
     return (
       <div className="page-content animate-fadeIn">
-        <div className="card" style={{ border: '1px solid var(--sev-critical)', padding: 32, textAlign: 'center' }}>
-          <XCircle className="text-critical" style={{ width: 48, height: 48, marginBottom: 16 }} />
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>System Communication Error</h2>
-          <p className="text-secondary" style={{ marginBottom: 24 }}>{error}</p>
+        <div className="card" style={{ border: '1px solid var(--sev-critical)', padding: 40, textAlign: 'center', background: 'rgba(255,59,48,0.03)' }}>
+          <XCircle className="text-critical" style={{ width: 64, height: 64, marginBottom: 20, filter: 'drop-shadow(0 0 10px rgba(255,59,48,0.2))' }} />
+          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>System Communication Error</h2>
+          <p className="text-secondary" style={{ marginBottom: 28, maxWidth: 500, margin: '0 auto 24px' }}>{error}</p>
           <button className="btn btn-outline" onClick={() => window.location.reload()}>
             Retry Connection
           </button>
@@ -67,134 +68,200 @@ export function ToolStatusPage() {
   const fallback = tools.filter(t => t.status === 'fallback').length;
   const missing = tools.filter(t => t.status === 'missing').length;
 
+  // Group tools by phase
+  const phases = {
+    Reconnaissance: tools.filter(t => t.phase === 'Reconnaissance'),
+    'Vulnerability Scanning': tools.filter(t => t.phase === 'Vulnerability Scanning'),
+    Exploitation: tools.filter(t => t.phase === 'Exploitation'),
+  };
+
   return (
     <div className="page-content animate-fadeIn">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Activity className="text-accent" style={{ width: 32, height: 32 }} />
+          <h1 style={{ fontSize: 32, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 12, letterSpacing: '-0.5px' }}>
+            <Activity className="text-accent" style={{ width: 36, height: 36, filter: 'drop-shadow(0 0 10px rgba(0,212,255,0.3))' }} />
             Tool Status
           </h1>
-          <p className="text-secondary mt-1">
-            Audit availability, binary paths, and running environments for integrated VAPT security scanners.
+          <p className="text-secondary mt-2" style={{ fontSize: 15 }}>
+            Audit binary installations, execution configs, and Python fallback status across VAPT pipeline stages.
           </p>
         </div>
       </div>
 
-      {/* Stats Cards Grid */}
-      <div className="stat-grid" style={{ marginBottom: 24 }}>
-        <div className="stat-card" style={{ '--card-accent': 'var(--primary-light)' } as any}>
-          <div className="stat-label">System Mode</div>
-          <div className="stat-value" style={{ fontSize: 24, padding: '6px 0', textTransform: 'capitalize' }}>
+      {/* Stats Cards */}
+      <div className="stat-grid" style={{ marginBottom: 32 }}>
+        <div className="stat-card" style={{ '--card-accent': 'var(--primary)' } as any}>
+          <div className="stat-label">Execution Environment</div>
+          <div className="stat-value" style={{ fontSize: 22, padding: '6px 0', textTransform: 'uppercase', color: 'var(--primary-light)', fontWeight: 800 }}>
             {data?.execution_mode || 'Subprocess'}
           </div>
-          <div className="stat-sub">Global tool execution mode</div>
+          <div className="stat-sub">Backend run environment config</div>
         </div>
 
         <div className="stat-card" style={{ '--card-accent': 'var(--sev-low)' } as any}>
-          <div className="stat-label">Available</div>
+          <div className="stat-label">Operational</div>
           <div className="stat-value" style={{ color: 'var(--sev-low)' }}>{available}</div>
-          <div className="stat-sub">Fully installed & operational</div>
+          <div className="stat-sub">Active binary installations</div>
         </div>
 
         <div className="stat-card" style={{ '--card-accent': 'var(--sev-high)' } as any}>
-          <div className="stat-label">Python Fallback</div>
+          <div className="stat-label">Fallback Mode</div>
           <div className="stat-value" style={{ color: 'var(--sev-high)' }}>{fallback}</div>
-          <div className="stat-sub">Running via custom script fallback</div>
+          <div className="stat-sub">Python probe backup active</div>
         </div>
 
         <div className="stat-card" style={{ '--card-accent': 'var(--sev-critical)' } as any}>
-          <div className="stat-label">Missing</div>
+          <div className="stat-label">Unavailable</div>
           <div className="stat-value" style={{ color: 'var(--sev-critical)' }}>{missing}</div>
-          <div className="stat-sub">Requires installation setup</div>
+          <div className="stat-sub">Integrations missing setups</div>
         </div>
       </div>
 
-      {/* Tools Table Container */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Scanning Integrations ({total})</h2>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            Status checks are updated on server start or query time
-          </span>
-        </div>
+      {/* Grouped Phase Pipeline Layout */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+        
+        {Object.entries(phases).map(([phaseName, phaseTools]) => {
+          if (phaseTools.length === 0) return null;
+          
+          let phaseColor = 'var(--primary-light)';
+          if (phaseName === 'Vulnerability Scanning') phaseColor = 'var(--accent-purple)';
+          if (phaseName === 'Exploitation') phaseColor = 'var(--sev-high)';
 
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Tool Integration</th>
-                <th>Phase</th>
-                <th>Binary Command</th>
-                <th>Execution Mode</th>
-                <th>Status</th>
-                <th>Resolved Path</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tools.map((tool: SystemTool) => {
-                let statusBadge = null;
-                if (tool.status === 'available') {
-                  statusBadge = <span className="badge badge-low">Available</span>;
-                } else if (tool.status === 'fallback') {
-                  statusBadge = (
-                    <span className="badge badge-high" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title="Binary is missing. Python network probe will handle the request.">
-                      <AlertTriangle style={{ width: 10, height: 10 }} />
-                      Fallback Active
-                    </span>
+          return (
+            <div key={phaseName} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Phase Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%', background: phaseColor,
+                  boxShadow: `0 0 8px ${phaseColor}`
+                }} />
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>
+                  {phaseName} Stage
+                </h2>
+                <span style={{
+                  fontSize: 11, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: 20, marginLeft: 8
+                }}>
+                  {phaseTools.length} {phaseTools.length === 1 ? 'tool' : 'tools'}
+                </span>
+              </div>
+
+              {/* Grid of Tool Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
+                {phaseTools.map((tool: SystemTool) => {
+                  const isAvailable = tool.status === 'available';
+                  const isFallback = tool.status === 'fallback';
+                  
+                  let cardBorder = '1px solid var(--border)';
+                  let glowEffect = 'none';
+                  let statusLabel = 'Missing';
+                  let statusClass = 'badge-critical';
+
+                  if (isAvailable) {
+                    cardBorder = '1px solid rgba(52, 199, 89, 0.15)';
+                    glowEffect = '0 0 15px rgba(52, 199, 89, 0.03)';
+                    statusLabel = 'Operational';
+                    statusClass = 'badge-low';
+                  } else if (isFallback) {
+                    cardBorder = '1px solid rgba(255, 149, 0, 0.2)';
+                    glowEffect = '0 0 15px rgba(255, 149, 0, 0.03)';
+                    statusLabel = 'Fallback Active';
+                    statusClass = 'badge-high';
+                  }
+
+                  return (
+                    <div key={tool.id} className="card" style={{
+                      background: 'var(--bg-card)',
+                      border: cardBorder,
+                      boxShadow: glowEffect,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: 16,
+                      padding: 20,
+                      borderRadius: 12,
+                      transition: 'transform 0.2s, border-color 0.2s'
+                    }}>
+                      
+                      <div>
+                        {/* Title & Status */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                          <div>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{tool.name}</h3>
+                            <span className="text-mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                              bin: {tool.binary}
+                            </span>
+                          </div>
+                          <span className={`badge ${statusClass}`} style={{ fontSize: 10 }}>
+                            {statusLabel}
+                          </span>
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-secondary" style={{ fontSize: 13, lineHeight: 1.5, marginTop: 10 }}>
+                          {tool.description}
+                        </p>
+                      </div>
+
+                      {/* Details block */}
+                      <div style={{
+                        background: 'var(--bg-surface)',
+                        borderRadius: 6,
+                        padding: '10px 12px',
+                        border: '1px solid rgba(255, 255, 255, 0.03)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6
+                      }}>
+                        {/* Run configuration */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                          <span className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {tool.execution_mode === 'docker' ? (
+                              <Container style={{ width: 12, height: 12, color: 'var(--accent-cyan)' }} />
+                            ) : (
+                              <Terminal style={{ width: 12, height: 12, color: 'var(--primary-light)' }} />
+                            )}
+                            Mode:
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'capitalize' }}>
+                            {tool.execution_mode}
+                          </span>
+                        </div>
+
+                        {/* Host path / URL */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11 }}>
+                          <span className="text-muted">Target Host Resource:</span>
+                          <span className="text-mono truncate" style={{
+                            color: tool.binary_path ? 'var(--primary-light)' : 'var(--text-muted)',
+                            background: 'rgba(0, 0, 0, 0.2)', padding: '2px 4px', borderRadius: 3
+                          }}>
+                            {tool.binary_path || 'Not registered / not found'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Fallback support note */}
+                      {isFallback && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 6, fontSize: 11,
+                          color: 'var(--sev-high)', background: 'rgba(255, 149, 0, 0.05)',
+                          padding: '6px 10px', borderRadius: 4, border: '1px solid rgba(255, 149, 0, 0.1)'
+                        }}>
+                          <Info style={{ width: 12, height: 12, flexShrink: 0 }} />
+                          <span>Custom Python probe fallback will execute automatically.</span>
+                        </div>
+                      )}
+
+                    </div>
                   );
-                } else {
-                  statusBadge = <span className="badge badge-critical">Missing</span>;
-                }
+                })}
+              </div>
+            </div>
+          );
+        })}
 
-                return (
-                  <tr key={tool.id}>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{tool.name}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tool.description}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="badge badge-blue">{tool.phase}</span>
-                    </td>
-                    <td>
-                      <span className="text-mono" style={{ background: 'rgba(255,255,255,0.03)', padding: '2px 6px', borderRadius: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
-                        {tool.binary}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {tool.execution_mode === 'docker' ? (
-                          <>
-                            <Container style={{ width: 14, height: 14, color: 'var(--accent-cyan)' }} />
-                            <span>Docker Container</span>
-                          </>
-                        ) : (
-                          <>
-                            <Terminal style={{ width: 14, height: 14, color: 'var(--primary-light)' }} />
-                            <span>Subprocess (Host)</span>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td>{statusBadge}</td>
-                    <td>
-                      <span className="text-mono" style={{ fontSize: 11, color: tool.binary_path ? 'var(--text-secondary)' : 'var(--text-muted)' }} title={tool.binary_path || ''}>
-                        {tool.binary_path ? (
-                          tool.binary_path.length > 35 ? `...${tool.binary_path.slice(-32)}` : tool.binary_path
-                        ) : (
-                          'N/A'
-                        )}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
