@@ -62,6 +62,7 @@ def default_exploitation_stages() -> Dict[str, ExploitationStageInfo]:
         "network": ExploitationStageInfo(name="Network Exploits"),
         "system_host": ExploitationStageInfo(name="System & Host Exploits"),
         "personnel_social": ExploitationStageInfo(name="Personnel & Social Engineering Exploits"),
+        "shannon_secrets": ExploitationStageInfo(name="Shannon Entropy Secrets Audit"),
     }
 
 

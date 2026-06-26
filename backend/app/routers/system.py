@@ -65,6 +65,14 @@ async def get_agents_status(current_user: Dict[str, Any] = Depends(get_current_u
             "description": "Generates executive summaries, compiles raw technical details into structured chapters, and calculates overall security postures.",
             "status": "active" if provider_configured else "inactive",
             "prompt_file": "report_generation.txt"
+        },
+        {
+            "id": "shannon_agent",
+            "name": "Shannon Agent",
+            "role": "Entropy Analyzer & Secrets Detector",
+            "description": "Calculates Shannon Entropy alongside regex rules to identify exposed high-entropy secrets (API keys, private keys, authentication tokens) in probed files or HTTP responses.",
+            "status": "active",
+            "prompt_file": ""
         }
     ]
 
