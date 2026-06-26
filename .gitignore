@@ -71,3 +71,6 @@ db.sqlite3
 *.njsproj
 *.sln
 *.sw?
+
+# Local Agent Skills
+.agents/
