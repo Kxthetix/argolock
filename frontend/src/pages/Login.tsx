@@ -40,6 +40,7 @@ export function Login() {
     setSuccessMsg('');
 
     try {
+      let resp;
       if (isSignUp) {
         if (!name) {
           setError('Please enter your display name');
@@ -47,16 +48,16 @@ export function Login() {
           return;
         }
         // Register user via API
-        await authApi.register(email, password, name);
+        resp = await authApi.register(email, password, name);
       } else {
         // Login user via API to verify credentials
-        await authApi.login(email, password);
+        resp = await authApi.login(email, password);
       }
 
-      // If credentials are valid or user is registered, trigger OTP code
-      await authApi.sendOtp(email);
-      setOtpEmail(email);
-      setIsOtpOpen(true);
+      // Bypass OTP: directly store auth token and login email, then redirect
+      localStorage.setItem('auth_token', resp.access_token);
+      localStorage.setItem('auth_email', resp.email);
+      window.location.href = '/';
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please try again.');
     } finally {

@@ -1,4 +1,4 @@
-const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8001';
 
 export type WsMessage =
   | { type: 'log'; level: string; message: string; tool: string }
