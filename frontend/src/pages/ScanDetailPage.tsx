@@ -9,6 +9,131 @@ import { SeverityBadge } from '../components/SeverityBadge';
 import { ArrowLeft, Download, Terminal, Shield, Clock } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
+const renderParsedData = (tool: string, parsedData: any) => {
+  if (!parsedData) return null;
+
+  if (tool === 'subfinder' || tool === 'amass') {
+    const subdomains = parsedData.subdomains || [];
+    if (subdomains.length === 0) {
+      return (
+        <div style={{ color: 'var(--text-muted)', marginBottom: 12, fontStyle: 'italic', fontSize: '11px' }}>
+          No subdomains discovered.
+        </div>
+      );
+    }
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: '11px' }}>
+          Discovered Subdomains ({subdomains.length}):
+        </div>
+        <div style={{
+          maxHeight: 150, overflowY: 'auto', background: 'rgba(0,0,0,0.2)',
+          padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: '11px'
+        }}>
+          {subdomains.map((sd: any, idx: number) => (
+            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: idx < subdomains.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+              <span style={{ color: 'var(--primary-light)' }}>{sd.subdomain}</span>
+              <span style={{ color: 'var(--text-muted)' }}>{sd.ip || 'no IP'} ({sd.source})</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (tool === 'naabu' || tool === 'nmap') {
+    const ports = parsedData.open_ports || [];
+    if (ports.length === 0) {
+      return (
+        <div style={{ color: 'var(--text-muted)', marginBottom: 12, fontStyle: 'italic', fontSize: '11px' }}>
+          No open ports detected.
+        </div>
+      );
+    }
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: '11px' }}>
+          Open Ports ({ports.length}):
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {ports.map((p: any, idx: number) => (
+            <div key={idx} style={{
+              background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.3)',
+              padding: '4px 8px', borderRadius: 4, fontSize: '11px', display: 'flex', gap: 6
+            }}>
+              <span style={{ fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{p.port}/{p.protocol || 'tcp'}</span>
+              {p.service && <span style={{ color: 'var(--text-secondary)' }}>{p.service}</span>}
+              {p.version && <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>({p.version})</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (tool === 'httpx_probe') {
+    const urls = parsedData.live_endpoints || [];
+    if (urls.length === 0) {
+      return (
+        <div style={{ color: 'var(--text-muted)', marginBottom: 12, fontStyle: 'italic', fontSize: '11px' }}>
+          No live HTTP endpoints probed.
+        </div>
+      );
+    }
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: '11px' }}>
+          Live Endpoints Probed ({urls.length}):
+        </div>
+        <div style={{
+          maxHeight: 150, overflowY: 'auto', background: 'rgba(0,0,0,0.2)',
+          padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: '11px'
+        }}>
+          {urls.map((u: any, idx: number) => (
+            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: idx < urls.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+              <span style={{ color: 'var(--accent-cyan)' }}>{u.url || u}</span>
+              {u.status_code && <span style={{ color: 'var(--accent-green)' }}>Status: {u.status_code}</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (tool === 'whatweb') {
+    const techs = parsedData.technologies || [];
+    if (techs.length === 0) {
+      return (
+        <div style={{ color: 'var(--text-muted)', marginBottom: 12, fontStyle: 'italic', fontSize: '11px' }}>
+          No technology fingerprints identified.
+        </div>
+      );
+    }
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: '11px' }}>
+          Identified Technologies ({techs.length}):
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {techs.map((t: any, idx: number) => (
+            <div key={idx} style={{
+              background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)',
+              padding: '3px 8px', borderRadius: 4, fontSize: '11px'
+            }}>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{t.name}</span>
+              {t.version && <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>v{t.version}</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
 export function ScanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [scan, setScan] = useState<Scan | null>(null);
@@ -202,6 +327,7 @@ export function ScanDetailPage() {
                           Exit Code: {result.exit_code}
                         </div>
                       )}
+                      {renderParsedData(tool, result.parsed_data)}
                       {result.raw_output ? (
                         <pre style={{
                           margin: 0,
