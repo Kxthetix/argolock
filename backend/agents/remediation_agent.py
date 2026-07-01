@@ -25,6 +25,11 @@ Return JSON with remediation object for each finding."""
 
 
 class RemediationAgent(BaseAgent):
+    prompt_file = "remediation_advice.txt"
+
+    def get_system_prompt(self) -> str:
+        """Return the loaded system prompt template or the fallback prompt."""
+        return self._prompt_template or SYSTEM_PROMPT
 
     async def remediate(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Generate root cause and remediation for each finding."""
@@ -74,7 +79,7 @@ Provide:
 
 Return as JSON: {{"root_cause": "...", "fix_steps": [...], "secure_code_example": "...", "references": [...]}}"""
 
-        response = await self._complete(prompt, system=SYSTEM_PROMPT)
+        response = await self._complete(prompt, system=self.get_system_prompt())
         result = self._extract_json(response)
 
         if isinstance(result, dict):
@@ -89,7 +94,7 @@ Return as JSON: {{"root_cause": "...", "fix_steps": [...], "secure_code_example"
 For each, provide a JSON object with: root_cause, fix_steps (array), references (array).
 Return as JSON array matching the input order."""
 
-        response = await self._complete(prompt, system=SYSTEM_PROMPT)
+        response = await self._complete(prompt, system=self.get_system_prompt())
         remediations = self._extract_json(response)
 
         if isinstance(remediations, list) and len(remediations) == len(findings):

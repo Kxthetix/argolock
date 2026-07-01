@@ -70,6 +70,11 @@ def _rule_based_score(finding: Dict) -> tuple[float, Dict]:
 
 
 class RiskScoringAgent(BaseAgent):
+    prompt_file = "risk_scoring.txt"
+
+    def get_system_prompt(self) -> str:
+        """Return the loaded system prompt template or the fallback prompt."""
+        return self._prompt_template or SYSTEM_PROMPT
 
     async def score(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Score all findings with CVSS 3.1 scores."""
@@ -114,7 +119,7 @@ For each finding, update the cvss_score (0.0-10.0) and cvss.vector based on the 
 Return the same JSON array with updated cvss_score and cvss fields.
 Return ONLY valid JSON array."""
 
-        response = await self._complete(prompt, system=SYSTEM_PROMPT)
+        response = await self._complete(prompt, system=self.get_system_prompt())
         result = self._extract_json(response)
 
         if isinstance(result, list) and len(result) == len(chunk):

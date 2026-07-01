@@ -97,7 +97,7 @@ async def get_tools_status(current_user: Dict[str, Any] = Depends(get_current_us
             "phase": "Reconnaissance",
             "description": "Discovers active subdomains using passive OSINT sources.",
             "binary": "subfinder",
-            "fallback_implemented": False,
+            "fallback_implemented": True,
             "docker_image": settings.subfinder_docker_image,
         },
         {
@@ -106,7 +106,7 @@ async def get_tools_status(current_user: Dict[str, Any] = Depends(get_current_us
             "phase": "Reconnaissance",
             "description": "Performs DNS mapping and OSINT-based subdomain enumeration.",
             "binary": "amass",
-            "fallback_implemented": False,
+            "fallback_implemented": True,
             "docker_image": None,
         },
         {
@@ -142,7 +142,7 @@ async def get_tools_status(current_user: Dict[str, Any] = Depends(get_current_us
             "phase": "Reconnaissance",
             "description": "Technology fingerprinting of content management systems, plugins, and servers.",
             "binary": "whatweb",
-            "fallback_implemented": False,
+            "fallback_implemented": True,
             "docker_image": None,
         },
         {
@@ -169,7 +169,7 @@ async def get_tools_status(current_user: Dict[str, Any] = Depends(get_current_us
             "phase": "Vulnerability Scanning",
             "description": "Detects Cross-Site Scripting (XSS) vulnerabilities via active injection.",
             "binary": "dalfox",
-            "fallback_implemented": False,
+            "fallback_implemented": True,
             "docker_image": None,
         },
         {
@@ -187,7 +187,7 @@ async def get_tools_status(current_user: Dict[str, Any] = Depends(get_current_us
             "phase": "Exploitation",
             "description": "Automated SQL injection detection and database takeover tool.",
             "binary": "sqlmap",
-            "fallback_implemented": False,
+            "fallback_implemented": True,
             "docker_image": settings.sqlmap_docker_image,
         }
     ]

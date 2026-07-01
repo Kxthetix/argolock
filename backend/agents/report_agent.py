@@ -23,6 +23,11 @@ Use HackerOne bug bounty report format conventions."""
 
 
 class ReportAgent(BaseAgent):
+    prompt_file = "report_generation.txt"
+
+    def get_system_prompt(self) -> str:
+        """Return the loaded system prompt template or the fallback prompt."""
+        return self._prompt_template or SYSTEM_PROMPT
 
     async def generate(
         self,
@@ -123,7 +128,7 @@ Write 3-4 paragraphs covering:
 Keep it professional, concise, and action-oriented."""
 
         try:
-            return await self._complete(prompt, system=SYSTEM_PROMPT)
+            return await self._complete(prompt, system=self.get_system_prompt())
         except Exception as e:
             logger.error(f"Executive summary generation failed: {e}")
             return f"Security assessment of {target} identified {total} vulnerabilities requiring attention."
