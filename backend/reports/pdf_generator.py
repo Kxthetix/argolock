@@ -356,15 +356,37 @@ async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
         f.write(html_content)
     logger.info(f"HTML report written to {html_path}")
 
+    pdf_compiled = False
+
     if weasyprint:
         try:
             pdf = weasyprint.HTML(string=html_content).write_pdf()
             with open(pdf_path, "wb") as f:
                 f.write(pdf)
-            logger.info(f"PDF report written to {pdf_path}")
-            return pdf_path
+            logger.info(f"PDF report written to {pdf_path} (via WeasyPrint)")
+            pdf_compiled = True
         except Exception as e:
             logger.error(f"WeasyPrint failed to compile PDF: {e}")
-            
+
+    if not pdf_compiled:
+        try:
+            from xhtml2pdf import pisa
+            logger.info("Attempting PDF compilation via xhtml2pdf fallback...")
+            with open(pdf_path, "w+b") as result_file:
+                pisa_status = pisa.CreatePDF(
+                    html_content,
+                    dest=result_file
+                )
+                if not pisa_status.err:
+                    logger.info(f"PDF report successfully written to {pdf_path} (via xhtml2pdf)")
+                    pdf_compiled = True
+                else:
+                    logger.error(f"xhtml2pdf compilation error code: {pisa_status.err}")
+        except Exception as e:
+            logger.error(f"xhtml2pdf failed to compile PDF: {e}")
+
+    if pdf_compiled:
+        return pdf_path
+
     # If PDF compilation fails or WeasyPrint is unavailable, return HTML path as fallback
     return html_path
