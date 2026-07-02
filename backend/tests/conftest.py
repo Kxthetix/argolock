@@ -9,8 +9,35 @@ from app.config import settings
 # Force test database configuration
 settings.mongodb_db = "argolock_test"
 
+import app.database as database
 from app.database import connect_db, disconnect_db, get_db
 from app.main import app
+
+
+def _real_mongo_available() -> bool:
+    """Return True if a real MongoDB server is reachable within a short timeout."""
+    try:
+        from pymongo import MongoClient
+        from pymongo.errors import PyMongoError
+
+        client = MongoClient(settings.mongodb_url, serverSelectionTimeoutMS=1500)
+        client.admin.command("ping")
+        client.close()
+        return True
+    except Exception:
+        return False
+
+
+# If no real MongoDB is reachable (e.g. local dev / CI without a Mongo service),
+# transparently fall back to an in-memory mongomock-motor client so the async
+# integration tests can still exercise the full request/DB code path.
+if not _real_mongo_available():
+    try:
+        from mongomock_motor import AsyncMongoMockClient
+
+        database.AsyncIOMotorClient = AsyncMongoMockClient
+    except ImportError:  # pragma: no cover - mongomock-motor not installed
+        pass
 
 
 @pytest.fixture(scope="session")

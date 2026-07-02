@@ -124,8 +124,9 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             report = run_async(
                 agent4.generate(scan_id, scan_doc, remediated_findings)
             )
-            db["reports"].insert_one({**report, "_inserted": True})
-            db["reports"].update_one({"_inserted": True}, {"$unset": {"_inserted": 1}})
+            # Upsert by scan_id so re-runs/retries don't hit the unique index on
+            # `reports.scan_id` with a DuplicateKeyError. This is idempotent.
+            db["reports"].replace_one({"scan_id": scan_id}, report, upsert=True)
             _log(scan_id, "success", "Agent 4 report generation complete", "report-agent")
         except Exception as e:
             _log(scan_id, "error", f"Report agent failed: {e}", "report-agent")
