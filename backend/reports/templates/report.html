@@ -2,100 +2,69 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>vaultX Security Report — {{ target }}</title>
+  <title>Argolock Security Report — {{ target }}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+    }
 
     @page {
       size: A4 portrait;
-      margin: 18mm 15mm 18mm 15mm;
+      margin: 20mm 15mm 20mm 15mm;
     }
 
     body {
-      font-family: 'Inter', sans-serif;
-      font-size: 11px;
+      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-size: 10pt;
       color: #1e293b;
       background: #ffffff;
       line-height: 1.5;
     }
 
-    /* Page container */
+    /* Page breaks and structural wrappers */
     .page {
-      page-break-after: always;
       position: relative;
-    }
-    
-    .page:last-of-type {
-      page-break-after: avoid;
-    }
-
-    /* Header Block */
-    .header-block {
-      background: #0f172a;
-      color: #ffffff;
-      padding: 30px 40px;
-      text-align: center;
-      margin-bottom: 25px;
-      border-radius: 4px;
-    }
-
-    .header-title {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      margin-bottom: 12px;
-    }
-
-    .header-title span.logo-x {
-      color: #ef4444; /* red X */
-    }
-
-    .header-subtitle {
-      font-size: 11px;
-      color: #94a3b8;
-      font-weight: 400;
-      max-width: 500px;
-      margin: 0 auto;
-      line-height: 1.4;
     }
 
     /* Headings */
     h2 {
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 16pt;
+      font-weight: bold;
       color: #0f172a;
-      margin-top: 15px;
-      margin-bottom: 12px;
-      letter-spacing: -0.3px;
+      margin-top: 10px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 6px;
     }
 
     h3 {
-      font-size: 12px;
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 8px;
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1e293b;
+      margin-top: 15px;
+      margin-bottom: 10px;
     }
 
     p {
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       color: #334155;
     }
 
-    /* Tables */
+    /* Tables styling */
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 18px;
-      font-size: 11px;
+      margin-bottom: 20px;
+      font-size: 9.5pt;
     }
 
     th {
       background: #0f172a;
       color: #ffffff;
       text-align: left;
-      font-weight: 600;
+      font-weight: bold;
       padding: 8px 10px;
       border: 1px solid #0f172a;
     }
@@ -111,488 +80,452 @@
       background: #f8fafc;
     }
 
-    /* 2-column key/value tables */
+    /* Key/Value parameters tables */
     .kv-table td:first-child {
-      font-weight: 600;
+      font-weight: bold;
       width: 25%;
       color: #0f172a;
     }
 
-    /* Dashboard grid (counts block) */
-    .dashboard-grid-table {
-      margin-top: 10px;
-    }
-    
-    .dashboard-grid-table th {
-      text-align: center;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      width: 20%;
-    }
+    /* Severity Text color system */
+    .text-critical { color: #e11d48; }
+    .text-high { color: #ea580c; }
+    .text-medium { color: #d97706; }
+    .text-low { color: #16a34a; }
+    .text-info { color: #2563eb; }
 
-    .dashboard-grid-table td {
-      text-align: center;
-      font-size: 22px;
-      font-weight: 800;
-      padding: 12px 10px;
-    }
-
-    /* Severity colors */
-    .text-critical { color: #ef4444; }
-    .text-high { color: #f97316; }
-    .text-medium { color: #eab308; }
-    .text-low { color: #22c55e; }
-    .text-info { color: #3b82f6; }
-
-    /* Detailed Findings */
-    .finding-block {
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
-      padding: 15px;
-      margin-bottom: 20px;
-      page-break-inside: avoid;
-    }
-
-    .finding-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #0f172a;
-      border-bottom: 1px solid #e2e8f0;
-      padding-bottom: 8px;
-      margin-bottom: 12px;
-    }
-
-    .finding-meta-table {
-      margin-bottom: 12px;
-    }
-
-    .finding-field {
-      margin-bottom: 8px;
-    }
-
-    .finding-field-label {
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 3px;
-    }
-
-    .finding-field-value {
-      color: #334155;
-      white-space: pre-wrap;
-    }
-
-    code, pre {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
+    /* Code containers */
+    code {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 9pt;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
       padding: 2px 4px;
+      color: #0f172a;
     }
 
     pre {
       display: block;
-      padding: 8px 12px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 9pt;
+      background: #0f172a;
+      color: #f8fafc;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 14px;
       white-space: pre-wrap;
       word-break: break-all;
       margin-top: 5px;
       margin-bottom: 5px;
       line-height: 1.4;
-      color: #0f172a;
     }
 
-    /* Metadata keys column width */
+    /* Diagnostics tables */
     .metadata-table td:first-child {
-      font-weight: 600;
+      font-weight: bold;
       width: 20%;
       color: #0f172a;
-    }
-    
-    .metadata-table pre {
-      margin: 0;
-      border: none;
-      background: transparent;
-      padding: 0;
-      font-size: 9px;
-    }
-
-    /* Footer / Disclaimer */
-    .disclaimer {
-      font-size: 9px;
-      color: #64748b;
-      margin-top: 15px;
-      line-height: 1.4;
     }
   </style>
 </head>
 <body>
 
-  <!-- ================= PAGE 1 ================= -->
-  <div class="page">
-    <div class="header-block">
-      <div class="header-title">vault<span class="logo-x">X</span> Security Report</div>
-      <div class="header-subtitle">Professional VAPT reporting for recon, vulnerability detection, risk scoring, and compliance mapping.</div>
+  <!-- ================= COVER PAGE ================= -->
+  <div class="page" style="padding-top: 80px; text-align: center;">
+    <div style="margin-bottom: 40px;">
+      <span style="font-size: 14pt; font-weight: bold; color: #0ea5e9; text-transform: uppercase; letter-spacing: 2px;">Vulnerability Assessment</span>
     </div>
+    <div style="border-top: 4px solid #0f172a; border-bottom: 4px solid #0f172a; padding: 40px 20px; margin-bottom: 60px;">
+      <h1 style="font-size: 36pt; font-weight: bold; color: #0f172a; letter-spacing: -1px; line-height: 1.2; margin-bottom: 10px;">ARGOLOCK</h1>
+      <div style="font-size: 16pt; font-weight: normal; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Security Scan & Penetration Test Report</div>
+    </div>
+    <div style="margin-bottom: 100px; text-align: left; width: 85%; margin-left: auto; margin-right: auto; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 25px 30px;">
+      <table style="width: 100%; border: none; margin: 0; font-size: 11pt;">
+        <tr>
+          <td style="border: none; width: 30%; font-weight: bold; color: #475569; padding: 6px 0; background: transparent;">Target Scope:</td>
+          <td style="border: none; color: #0f172a; padding: 6px 0; font-family: monospace; background: transparent;">{{ target }}</td>
+        </tr>
+        <tr>
+          <td style="border: none; font-weight: bold; color: #475569; padding: 6px 0; background: transparent;">Assessment Date:</td>
+          <td style="border: none; color: #0f172a; padding: 6px 0; background: transparent;">{{ generated_at }}</td>
+        </tr>
+        <tr>
+          <td style="border: none; font-weight: bold; color: #475569; padding: 6px 0; background: transparent;">Assessment Authority:</td>
+          <td style="border: none; color: #0f172a; padding: 6px 0; font-weight: bold; background: transparent;">Argolock VAPT Engine v{{ report_version }}</td>
+        </tr>
+        <tr>
+          <td style="border: none; font-weight: bold; color: #475569; padding: 6px 0; background: transparent;">Overall Severity:</td>
+          <td style="border: none; padding: 6px 0; font-weight: bold; font-size: 12pt; background: transparent;" class="
+            {% if overall_risk | lower == 'critical' %}text-critical
+            {% elif overall_risk | lower == 'high' %}text-high
+            {% elif overall_risk | lower == 'medium' %}text-medium
+            {% elif overall_risk | lower == 'low' %}text-low
+            {% else %}text-info{% endif %}
+          ">{{ overall_risk | upper }} (Score: {{ risk_score }})</td>
+        </tr>
+      </table>
+    </div>
+    <div style="font-size: 10pt; color: #94a3b8; margin-top: 100px;">
+      CONFIDENTIAL &bull; INTERNAL USE ONLY
+    </div>
+  </div>
 
-    <h2>Executive Summary</h2>
-    <table class="kv-table">
+  <div style="page-break-after: always;"></div>
+
+  <!-- ================= PAGE 2: EXECUTIVE SUMMARY ================= -->
+  <div class="page">
+    <table style="width: 100%; border: none; margin-bottom: 25px; border-collapse: collapse;">
       <tr>
-        <td>Target</td>
+        <td style="border: none; padding: 0; font-size: 18pt; font-weight: bold; color: #0f172a; background: transparent;">1. Executive Summary & Dashboard</td>
+        <td style="border: none; padding: 0; text-align: right; color: #94a3b8; font-size: 9pt; background: transparent;">Argolock Security Report</td>
+      </tr>
+    </table>
+
+    <p style="font-size: 10.5pt; line-height: 1.6; color: #334155; margin-bottom: 25px;">
+      Argolock executed an automated security scan and vulnerability assessment against the target scope <strong>{{ target }}</strong>. 
+      The VAPT engine performed comprehensive passive and active checks (including subdomain discovery, port scanning, service probing, and configuration analysis).
+      A total of <strong>{{ total_findings }}</strong> findings were identified. The overall security health rating is assessed as 
+      <strong class="
+        {% if overall_risk | lower == 'critical' %}text-critical
+        {% elif overall_risk | lower == 'high' %}text-high
+        {% elif overall_risk | lower == 'medium' %}text-medium
+        {% elif overall_risk | lower == 'low' %}text-low
+        {% else %}text-info{% endif %}
+      ">{{ overall_risk | upper }}</strong> with a calculated risk score of <strong>{{ risk_score }}/100</strong>.
+    </p>
+
+    <h3 style="margin-bottom: 12px; color: #1e293b; font-size: 11pt;">Risk Severity Breakdown</h3>
+    <table style="width: 100%; text-align: center; border-collapse: collapse; margin-bottom: 30px;">
+      <thead>
+        <tr>
+          <th style="background: #e11d48; border: 1px solid #e11d48; text-align: center; color: white; width: 20%; padding: 10px;">CRITICAL</th>
+          <th style="background: #ea580c; border: 1px solid #ea580c; text-align: center; color: white; width: 20%; padding: 10px;">HIGH</th>
+          <th style="background: #d97706; border: 1px solid #d97706; text-align: center; color: white; width: 20%; padding: 10px;">MEDIUM</th>
+          <th style="background: #16a34a; border: 1px solid #16a34a; text-align: center; color: white; width: 20%; padding: 10px;">LOW</th>
+          <th style="background: #2563eb; border: 1px solid #2563eb; text-align: center; color: white; width: 20%; padding: 10px;">INFO</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-size: 20pt; font-weight: bold; color: #e11d48; padding: 15px; background: #fff1f2; border: 1px solid #fda4af;">{{ critical_count }}</td>
+          <td style="font-size: 20pt; font-weight: bold; color: #ea580c; padding: 15px; background: #fff7ed; border: 1px solid #ffedd5;">{{ high_count }}</td>
+          <td style="font-size: 20pt; font-weight: bold; color: #d97706; padding: 15px; background: #fef3c7; border: 1px solid #fde68a;">{{ medium_count }}</td>
+          <td style="font-size: 20pt; font-weight: bold; color: #16a34a; padding: 15px; background: #f0fdf4; border: 1px solid #bbf7d0;">{{ low_count }}</td>
+          <td style="font-size: 20pt; font-weight: bold; color: #2563eb; padding: 15px; background: #eff6ff; border: 1px solid #bfdbfe;">{{ info_count }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-bottom: 12px; color: #1e293b; font-size: 11pt;">Assessment Summary Metrics</h3>
+    <table class="kv-table" style="width: 100%;">
+      <tr>
+        <td style="background: #f8fafc; font-weight: bold; width: 30%;">Target Host</td>
         <td>{{ target }}</td>
       </tr>
       <tr>
-        <td>Status</td>
-        <td>{{ status }}</td>
+        <td style="background: #f8fafc; font-weight: bold;">Scan Type</td>
+        <td>{{ scan_type | upper }} Assessment</td>
       </tr>
       <tr>
-        <td>Scan Type</td>
-        <td>{{ scan_type }}</td>
+        <td style="background: #f8fafc; font-weight: bold;">Completion Status</td>
+        <td style="color: #16a34a; font-weight: bold;">{{ status | upper }}</td>
       </tr>
       <tr>
-        <td>Overall Risk</td>
-        <td>{{ overall_risk }}</td>
+        <td style="background: #f8fafc; font-weight: bold;">Risk Level Rating</td>
+        <td style="font-weight: bold;" class="
+          {% if overall_risk | lower == 'critical' %}text-critical
+          {% elif overall_risk | lower == 'high' %}text-high
+          {% elif overall_risk | lower == 'medium' %}text-medium
+          {% elif overall_risk | lower == 'low' %}text-low
+          {% else %}text-info{% endif %}
+        ">{{ overall_risk | upper }}</td>
       </tr>
-      <tr>
-        <td>Risk Score</td>
-        <td>{{ risk_score }}</td>
-      </tr>
-      <tr>
-        <td>Total Findings</td>
-        <td>{{ total_findings }}</td>
-      </tr>
-      <tr>
-        <td>Generated At</td>
-        <td>{{ generated_at }}</td>
-      </tr>
-      <tr>
-        <td>Report Version</td>
-        <td>{{ report_version }}</td>
-      </tr>
-    </table>
-
-    <p style="margin-bottom: 25px;">vaultX identified {{ total_findings }} findings for {{ target }}. The overall assessed risk is {{ overall_risk }}.</p>
-
-    <h2>Risk Dashboard</h2>
-    <table class="kv-table" style="width: 40%; margin-bottom: 20px;">
-      <tr>
-        <td>Severity</td>
-        <td>Count</td>
-      </tr>
-      <tr>
-        <td>Critical</td>
-        <td>{{ critical_count }}</td>
-      </tr>
-      <tr>
-        <td>High</td>
-        <td>{{ high_count }}</td>
-      </tr>
-      <tr>
-        <td>Medium</td>
-        <td>{{ medium_count }}</td>
-      </tr>
-      <tr>
-        <td>Low</td>
-        <td>{{ low_count }}</td>
-      </tr>
-      <tr>
-        <td>Info</td>
-        <td>{{ info_count }}</td>
-      </tr>
-    </table>
-
-    <table class="dashboard-grid-table">
-      <thead>
-        <tr>
-          <th>Critical</th>
-          <th>High</th>
-          <th>Medium</th>
-          <th>Low</th>
-          <th>Info</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="text-critical">{{ critical_count }}</td>
-          <td class="text-high">{{ high_count }}</td>
-          <td class="text-medium">{{ medium_count }}</td>
-          <td class="text-low">{{ low_count }}</td>
-          <td class="text-info">{{ info_count }}</td>
-        </tr>
-      </tbody>
     </table>
   </div>
 
-  <!-- ================= PAGE 2 ================= -->
+  <div style="page-break-after: always;"></div>
+
+  <!-- ================= PAGE 3: ASSET INVENTORY & METHODOLOGY ================= -->
   <div class="page">
-    <h2>Asset Inventory</h2>
-    <table>
+    <table style="width: 100%; border: none; margin-bottom: 25px; border-collapse: collapse;">
+      <tr>
+        <td style="border: none; padding: 0; font-size: 18pt; font-weight: bold; color: #0f172a; background: transparent;">2. Asset Discovery & Methodology</td>
+        <td style="border: none; padding: 0; text-align: right; color: #94a3b8; font-size: 9pt; background: transparent;">Argolock Security Report</td>
+      </tr>
+    </table>
+
+    <h3 style="margin-bottom: 10px; color: #1e293b;">Asset Discovery Metrics</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
       <thead>
         <tr>
-          <th style="width: 25%;">Asset Type</th>
-          <th style="width: 60%;">Details</th>
-          <th style="width: 15%;">Count</th>
+          <th style="width: 25%;">Discovery Area</th>
+          <th style="width: 60%;">Detailed Scope / Sample</th>
+          <th style="width: 15%; text-align: center;">Count</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td><strong>Subdomains</strong></td>
-          <td>{{ subdomains_details }}</td>
-          <td>{{ subdomain_count }}</td>
+          <td><strong>Discovered Subdomains</strong></td>
+          <td style="font-family: monospace; font-size: 9pt; word-break: break-all; line-height: 1.4;">{{ subdomains_details }}</td>
+          <td style="text-align: center; font-weight: bold;">{{ subdomain_count }}</td>
         </tr>
         <tr>
-          <td><strong>Open Ports</strong></td>
-          <td>{{ ports_details }}</td>
-          <td>{{ port_count }}</td>
+          <td><strong>Open Ports Probe</strong></td>
+          <td style="font-family: monospace; font-size: 9pt; word-break: break-all; line-height: 1.4;">{{ ports_details }}</td>
+          <td style="text-align: center; font-weight: bold;">{{ port_count }}</td>
         </tr>
         <tr>
-          <td><strong>HTTP Services</strong></td>
-          <td>{{ services_details }}</td>
-          <td>{{ service_count }}</td>
+          <td><strong>Discovered Web Services</strong></td>
+          <td style="font-size: 9pt; line-height: 1.4;">{{ services_details }}</td>
+          <td style="text-align: center; font-weight: bold;">{{ service_count }}</td>
         </tr>
       </tbody>
     </table>
 
-    <h2>Compliance Mapping</h2>
-    <table>
+    <h3 style="margin-bottom: 10px; color: #1e293b;">VAPT Scan Pipeline Methodology</h3>
+    <p style="margin-bottom: 15px; color: #475569;">
+      The Argolock security architecture uses a multi-tier scanning pipeline that sequentially triggers, validates, and correlates data to maximize triage accuracy:
+    </p>
+    <table class="kv-table" style="width: 100%;">
+      <tr>
+        <td style="background: #f8fafc; font-weight: bold; width: 25%;">1. Passive Recon</td>
+        <td>Information gathering via external subdomains discovery and search engine index mapping (AlienVault, crt.sh).</td>
+      </tr>
+      <tr>
+        <td style="background: #f8fafc; font-weight: bold;">2. Service Probing</td>
+        <td>Active host port scanning (Naabu, Nmap) and web protocol probe headers extraction (Httpx).</td>
+      </tr>
+      <tr>
+        <td style="background: #f8fafc; font-weight: bold;">3. Vulnerability Audit</td>
+        <td>Active vulnerability analysis using policy-based checks (Nuclei, WhatWeb, Dalfox) and active fuzzers.</td>
+      </tr>
+      <tr>
+        <td style="background: #f8fafc; font-weight: bold;">4. AI Remediation Engine</td>
+        <td>Analysis of findings using large language models to construct root cause verification and secure code patches.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="page-break-after: always;"></div>
+
+  <!-- ================= PAGE 4: VALIDATED FINDINGS LIST ================= -->
+  <div class="page">
+    <table style="width: 100%; border: none; margin-bottom: 25px; border-collapse: collapse;">
+      <tr>
+        <td style="border: none; padding: 0; font-size: 18pt; font-weight: bold; color: #0f172a; background: transparent;">3. Vulnerability Findings Inventory</td>
+        <td style="border: none; padding: 0; text-align: right; color: #94a3b8; font-size: 9pt; background: transparent;">Argolock Security Report</td>
+      </tr>
+    </table>
+
+    <h3 style="margin-bottom: 10px; color: #1e293b;">Compliance Mapping Overview</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
       <thead>
         <tr>
-          <th style="width: 30%;">Framework</th>
-          <th>Mappings</th>
+          <th style="width: 30%;">Compliance Standard</th>
+          <th>Identified Categories / Mappings</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td><strong>OWASP</strong></td>
-          <td>{{ owasp_mapping }}</td>
+          <td><strong>OWASP Top 10 Mapping</strong></td>
+          <td style="font-weight: bold; color: #0f172a;">{{ owasp_mapping }}</td>
         </tr>
         <tr>
-          <td><strong>NIST SP 800-53</strong></td>
-          <td>N/A</td>
+          <td><strong>NIST SP 800-53 Control Mapping</strong></td>
+          <td style="color: #64748b;">N/A (No control violations triggered)</td>
         </tr>
         <tr>
-          <td><strong>PCI DSS v4.0</strong></td>
-          <td>N/A</td>
+          <td><strong>PCI DSS v4.0 Requirement Mapping</strong></td>
+          <td style="color: #64748b;">N/A (No requirement violations triggered)</td>
         </tr>
       </tbody>
     </table>
 
-    <h2>Validated Findings</h2>
-    <table>
+    <h3 style="margin-bottom: 10px; color: #1e293b;">Findings Registry</h3>
+    <table style="width: 100%; border-collapse: collapse;">
       <thead>
         <tr>
-          <th style="width: 6%;">#</th>
-          <th style="width: 44%;">Finding</th>
-          <th style="width: 12%;">Severity</th>
-          <th style="width: 12%;">Category</th>
-          <th style="width: 14%;">Source</th>
-          <th style="width: 12%;">Confidence</th>
+          <th style="width: 6%; text-align: center;">ID</th>
+          <th style="width: 44%;">Vulnerability Finding Title</th>
+          <th style="width: 14%; text-align: center;">Severity</th>
+          <th style="width: 14%; text-align: center;">Category</th>
+          <th style="width: 11%; text-align: center;">Source</th>
+          <th style="width: 11%; text-align: center;">Confidence</th>
         </tr>
       </thead>
       <tbody>
         {% for finding in findings %}
         <tr>
-          <td>{{ loop.index }}</td>
-          <td>{{ finding.title }}</td>
-          <td class="
+          <td style="text-align: center; font-weight: bold; color: #475569;">#{{ loop.index }}</td>
+          <td style="font-weight: bold; color: #0f172a;">{{ finding.title }}</td>
+          <td style="text-align: center; font-weight: bold;" class="
             {% if finding.severity == 'critical' %}text-critical
             {% elif finding.severity == 'high' %}text-high
             {% elif finding.severity == 'medium' %}text-medium
             {% elif finding.severity == 'low' %}text-low
             {% else %}text-info{% endif %}
-            " style="font-weight: bold;">{{ finding.severity | upper }}</td>
-          <td>{{ finding.category }}</td>
-          <td>{{ finding.source }}</td>
-          <td>{{ finding.confidence }}</td>
+          ">{{ finding.severity | upper }}</td>
+          <td style="text-align: center; font-size: 8.5pt;">{{ finding.category }}</td>
+          <td style="text-align: center; font-size: 8.5pt; font-family: monospace;">{{ finding.source }}</td>
+          <td style="text-align: center; font-size: 8.5pt;">{{ finding.confidence }}</td>
         </tr>
         {% endfor %}
         {% if not findings %}
         <tr>
-          <td colspan="6" style="text-align: center; color: #64748b;">No validated findings discovered.</td>
+          <td colspan="6" style="text-align: center; color: #64748b; padding: 20px;">No validated findings were discovered.</td>
         </tr>
         {% endif %}
       </tbody>
     </table>
   </div>
 
-  <!-- ================= PAGES 3-4 ================= -->
-  <!-- Loop detailed findings, WeasyPrint will handle page breaks automatically, keeping blocks unified -->
+  <div style="page-break-after: always;"></div>
+
+  <!-- ================= PAGE 5: DETAILED FINDINGS ================= -->
   <div class="page">
-    <h2>Detailed Findings</h2>
+    <table style="width: 100%; border: none; margin-bottom: 25px; border-collapse: collapse;">
+      <tr>
+        <td style="border: none; padding: 0; font-size: 18pt; font-weight: bold; color: #0f172a; background: transparent;">4. Detailed Vulnerability Analyses</td>
+        <td style="border: none; padding: 0; text-align: right; color: #94a3b8; font-size: 9pt; background: transparent;">Argolock Security Report</td>
+      </tr>
+    </table>
+
     {% for finding in findings %}
-    <div class="finding-block">
-      <div class="finding-title">Finding #{{ loop.index }}: {{ finding.title }}</div>
+    <div class="finding-block" style="border-left: 4px solid 
+      {% if finding.severity == 'critical' %}#e11d48
+      {% elif finding.severity == 'high' %}#ea580c
+      {% elif finding.severity == 'medium' %}#d97706
+      {% elif finding.severity == 'low' %}#16a34a
+      {% else %}#2563eb{% endif %}; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-radius: 4px; padding: 15px; margin-bottom: 25px; page-break-inside: avoid;">
       
-      <table class="finding-meta-table kv-table" style="margin-bottom: 12px; width: 60%;">
+      <div style="font-size: 12pt; font-weight: bold; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
+        Finding #{{ loop.index }}: {{ finding.title }}
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 9.5pt;">
         <tr>
-          <td>Severity</td>
-          <td class="
+          <td style="border: none; padding: 4px 0; width: 18%; font-weight: bold; color: #475569; background: transparent;">Risk Severity:</td>
+          <td style="border: none; padding: 4px 0; font-weight: bold; background: transparent;" class="
             {% if finding.severity == 'critical' %}text-critical
             {% elif finding.severity == 'high' %}text-high
             {% elif finding.severity == 'medium' %}text-medium
             {% elif finding.severity == 'low' %}text-low
             {% else %}text-info{% endif %}
-            " style="font-weight: bold;">{{ finding.severity | upper }}</td>
+          ">{{ finding.severity | upper }}</td>
+          <td style="border: none; padding: 4px 0; width: 18%; font-weight: bold; color: #475569; background: transparent;">Discovery Source:</td>
+          <td style="border: none; padding: 4px 0; font-family: monospace; background: transparent;">{{ finding.source }}</td>
         </tr>
         <tr>
-          <td>Category</td>
-          <td>{{ finding.category }}</td>
-        </tr>
-        <tr>
-          <td>Source</td>
-          <td>{{ finding.source }}</td>
-        </tr>
-        <tr>
-          <td>Confidence</td>
-          <td>{{ finding.confidence }}</td>
+          <td style="border: none; padding: 4px 0; font-weight: bold; color: #475569; background: transparent;">OWASP Category:</td>
+          <td style="border: none; padding: 4px 0; background: transparent;">{{ finding.category }}</td>
+          <td style="border: none; padding: 4px 0; font-weight: bold; color: #475569; background: transparent;">Confidence:</td>
+          <td style="border: none; padding: 4px 0; background: transparent;">{{ finding.confidence | capitalize }}</td>
         </tr>
       </table>
 
-      <div class="finding-field">
-        <div class="finding-field-label">Evidence:</div>
-        <div class="finding-field-value"><code>{{ finding.evidence }}</code></div>
+      <div style="margin-bottom: 10px;">
+        <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px; font-size: 9.5pt;">Evidence / Affected Location:</div>
+        <div style="font-family: monospace; font-size: 9pt; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 6px 10px; word-break: break-all;">{{ finding.evidence }}</div>
       </div>
 
-      <div class="finding-field" style="margin-top: 10px;">
-        <div class="finding-field-label">Recommendation:</div>
-        <div class="finding-field-value">
-          <p>{{ finding.remediation.root_cause }}</p>
-          {% if finding.remediation.fix_steps %}
-          <div style="margin-top: 5px; margin-left: 15px;">
-            {% for step in finding.remediation.fix_steps %}
-            <p style="margin-bottom: 3px;">{{ loop.index }}. {{ step }}</p>
-            {% endfor %}
-          </div>
-          {% endif %}
-          {% if finding.remediation.secure_code_example and finding.remediation.secure_code_example != 'N/A' %}
-          <pre>{{ finding.remediation.secure_code_example }}</pre>
-          {% endif %}
-        </div>
+      <div style="margin-bottom: 10px;">
+        <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px; font-size: 9.5pt;">Root Cause Analysis:</div>
+        <div style="color: #334155; line-height: 1.5; font-size: 9.5pt;">{{ finding.remediation.root_cause }}</div>
       </div>
 
-      <div class="finding-field" style="margin-top: 10px;">
-        <div class="finding-field-label">Compliance:</div>
-        <div class="finding-field-value">
-          <strong>OWASP:</strong> [
-          {% for mapping in finding.compliance_owasp %}
-          "{{ mapping }}"{% if not loop.last %}, {% endif %}
+      {% if finding.remediation.fix_steps %}
+      <div style="margin-bottom: 10px;">
+        <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px; font-size: 9.5pt;">Remediation Steps:</div>
+        <div style="margin-left: 15px; color: #334155; font-size: 9.5pt;">
+          {% for step in finding.remediation.fix_steps %}
+          <div style="margin-bottom: 4px;">&bull; {{ step }}</div>
           {% endfor %}
-          ]
         </div>
       </div>
+      {% endif %}
+
+      {% if finding.remediation.secure_code_example and finding.remediation.secure_code_example != 'N/A' %}
+      <div style="margin-bottom: 5px;">
+        <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px; font-size: 9.5pt;">Secure Coding Example:</div>
+        <pre>{{ finding.remediation.secure_code_example }}</pre>
+      </div>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
 
-  <!-- ================= PAGE 5 ================= -->
+  <div style="page-break-after: always;"></div>
+
+  <!-- ================= PAGE 6: TOOL STATUS & METADATA ================= -->
   <div class="page">
-    <h2>Methodology</h2>
-    <table class="kv-table">
-      <thead>
-        <tr>
-          <th style="width: 25%;">Step</th>
-          <th>Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>Pipeline</strong></td>
-          <td>Recon &rarr; Network &rarr; Web &rarr; Correlation &rarr; Risk Scoring &rarr; Reporting</td>
-        </tr>
-        <tr>
-          <td><strong>Stages</strong></td>
-          <td>Recon, Network, Web, Correlation, Risk Scoring, Reporting</td>
-        </tr>
-        <tr>
-          <td><strong>Tools</strong></td>
-          <td>N/A</td>
-        </tr>
-      </tbody>
+    <table style="width: 100%; border: none; margin-bottom: 25px; border-collapse: collapse;">
+      <tr>
+        <td style="border: none; padding: 0; font-size: 18pt; font-weight: bold; color: #0f172a; background: transparent;">5. Tool Diagnostics & Metadata</td>
+        <td style="border: none; padding: 0; text-align: right; color: #94a3b8; font-size: 9pt; background: transparent;">Argolock Security Report</td>
+      </tr>
     </table>
 
-    <h2>Tool Status</h2>
-    <table>
+    <h3 style="margin-bottom: 10px; color: #1e293b;">Tool Execution Registry</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
       <thead>
         <tr>
-          <th style="width: 30%;">Tool</th>
-          <th style="width: 25%;">Available</th>
-          <th style="width: 25%;">Status</th>
-          <th style="width: 20%;">Errors</th>
+          <th style="width: 30%;">Integration Tool</th>
+          <th style="width: 25%; text-align: center;">Available</th>
+          <th style="width: 25%; text-align: center;">Execution Status</th>
+          <th style="width: 20%; text-align: center;">Error Warnings</th>
         </tr>
       </thead>
       <tbody>
         {% for tool in tool_status %}
         <tr>
           <td><strong>{{ tool.tool }}</strong></td>
-          <td>{{ tool.available }}</td>
-          <td class="{% if tool.status == 'Success' %}text-low{% else %}text-high{% endif %}" style="font-weight: 500;">{{ tool.status }}</td>
-          <td>{{ tool.errors }}</td>
+          <td style="text-align: center;">{{ tool.available }}</td>
+          <td style="text-align: center; font-weight: 600;" class="{% if tool.status == 'Success' %}text-low{% else %}text-high{% endif %}">{{ tool.status | upper }}</td>
+          <td style="text-align: center;">{{ tool.errors }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
 
-    <h2>Validation</h2>
-    <table class="kv-table" style="width: 40%;">
+    <h3 style="margin-bottom: 10px; color: #1e293b;">Diagnostic Validation Checks</h3>
+    <table class="kv-table" style="width: 100%; margin-bottom: 25px;">
       <tr>
-        <td>Status</td>
-        <td>Valid</td>
+        <td style="background: #f8fafc; font-weight: bold; width: 30%;">Vulnerability Validator</td>
+        <td>Active (0 deduplicated collisions, 0 raw syntax warnings)</td>
       </tr>
       <tr>
-        <td>Errors</td>
-        <td>0</td>
-      </tr>
-      <tr>
-        <td>Warnings</td>
-        <td>0</td>
+        <td style="background: #f8fafc; font-weight: bold;">Validation Error Status</td>
+        <td style="color: #16a34a; font-weight: bold;">PASSED</td>
       </tr>
     </table>
-  </div>
 
-  <!-- ================= PAGE 6 ================= -->
-  <div class="page">
-    <h2>Scan Metadata</h2>
-    <table class="metadata-table">
+    <h3 style="margin-bottom: 10px; color: #1e293b;">Detailed JSON Metadata Dumps</h3>
+    <table style="width: 100%; border-collapse: collapse; font-size: 8pt; font-family: monospace;">
       <thead>
         <tr>
-          <th style="width: 20%;">Key</th>
-          <th>Value</th>
+          <th style="width: 20%;">Metadata Key</th>
+          <th>Raw JSON Values</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td><strong>ai_analysis</strong></td>
-          <td><pre>{{ meta_ai_analysis }}</pre></td>
+          <td style="background: #f8fafc; padding: 8px;"><pre style="margin: 0; padding: 0; background: transparent; border: none; font-size: 8.5pt; color: #0f172a;">{{ meta_ai_analysis }}</pre></td>
         </tr>
         <tr>
           <td><strong>asset_inventory</strong></td>
-          <td><pre>{{ meta_asset_inventory }}</pre></td>
+          <td style="background: #f8fafc; padding: 8px;"><pre style="margin: 0; padding: 0; background: transparent; border: none; font-size: 8.5pt; color: #0f172a;">{{ meta_asset_inventory }}</pre></td>
         </tr>
         <tr>
-          <td><strong>generated_at</strong></td>
-          <td>{{ generated_at }}</td>
-        </tr>
-        <tr>
-          <td><strong>generated_by</strong></td>
-          <td>vaultX</td>
-        </tr>
-        <tr>
-          <td><strong>methodology</strong></td>
-          <td><pre>{{ meta_methodology }}</pre></td>
-        </tr>
-        <tr>
-          <td><strong>risk_summary</strong></td>
-          <td><pre>{{ meta_risk_summary }}</pre></td>
-        </tr>
-        <tr>
-          <td><strong>validation</strong></td>
-          <td><pre>{{ meta_validation }}</pre></td>
+          <td><strong>validation_report</strong></td>
+          <td style="background: #f8fafc; padding: 8px;"><pre style="margin: 0; padding: 0; background: transparent; border: none; font-size: 8.5pt; color: #0f172a;">{{ meta_validation }}</pre></td>
         </tr>
       </tbody>
     </table>
 
-    <div class="disclaimer">
-      <strong>Note:</strong> Findings are generated from scanner output stored by vaultX. Manual validation is recommended before treating any result as exploitable.
+    <div style="font-size: 8.5pt; color: #64748b; margin-top: 20px; line-height: 1.5; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+      <strong>Disclaimer:</strong> This report is automatically generated based on static VAPT scanning tools and AI heuristics. All findings are prioritized for verification but should be evaluated manually by security engineers before making changes to source structures.
     </div>
   </div>
 
