@@ -67,8 +67,52 @@ async def lifespan(app: FastAPI):
         )
         if result.modified_count > 0:
             logger.info(f"🧹 Cleaned up {result.modified_count} interrupted scan(s) from database.")
+
+        # ── Startup auto-repair for findings ─────────────────────────────────
+        from agents.vulnerability_agent import VulnerabilityAgent
+        cursor = db["findings"].find({
+            "$or": [
+                {"title": {"$in": ["Unknown Finding", "Unknown", "", None]}},
+                {"owasp_category": {"$in": ["Unknown", "", None]}}
+            ]
+        })
+        unfixed_findings = await cursor.to_list(length=1000)
+        repaired_count = 0
+        for f in unfixed_findings:
+            title = f.get("title")
+            desc = f.get("description", "") or f.get("msg", "")
+            tool = f.get("tool_source", "")
+
+            if not title or title.strip() in ("", "Unknown Finding", "Unknown", "None"):
+                title = (
+                    f.get("name")
+                    or f.get("template_name")
+                    or f.get("msg")
+                    or f.get("vulnerability")
+                    or f.get("vulnerability_type")
+                    or f.get("id")
+                )
+                if not title and desc:
+                    title = desc.split(".")[0].strip()
+                    if len(title) > 75:
+                        title = title[:72] + "..."
+                if not title:
+                    title = f"Security Issue Discovered ({tool or 'Scanner'})"
+                f["title"] = title
+
+            owasp = f.get("owasp_category")
+            if not owasp or owasp.strip() in ("", "Unknown", "None"):
+                f["owasp_category"] = VulnerabilityAgent.infer_owasp_category(f["title"], desc, tool)
+
+            await db["findings"].update_one(
+                {"id": f["id"]},
+                {"$set": {"title": f["title"], "owasp_category": f["owasp_category"]}}
+            )
+            repaired_count += 1
+        if repaired_count > 0:
+            logger.info(f"✨ Auto-repaired {repaired_count} finding(s) with missing title or OWASP category.")
     except Exception as e:
-        logger.error(f"Failed to clean up interrupted scans on startup: {e}")
+        logger.error(f"Failed to clean up interrupted scans or repair findings on startup: {e}")
     
     # Start Redis listener task
     listener_task = asyncio.create_task(redis_pubsub_listener())
