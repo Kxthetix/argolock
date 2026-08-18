@@ -131,6 +131,36 @@ const renderParsedData = (tool: string, parsedData: any) => {
     );
   }
 
+  if (parsedData.findings && Array.isArray(parsedData.findings) && parsedData.findings.length > 0) {
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: '11px' }}>
+          Identified Alerts / Findings ({parsedData.findings.length}):
+        </div>
+        <div style={{
+          maxHeight: 150, overflowY: 'auto', background: 'rgba(0,0,0,0.2)',
+          padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: '11px'
+        }}>
+          {parsedData.findings.map((f: any, idx: number) => {
+            const sev = (f.severity || 'info').toLowerCase();
+            const sevColor = sev === 'critical' ? 'var(--sev-critical)' : sev === 'high' ? 'var(--sev-high)' : sev === 'medium' ? 'var(--sev-medium)' : sev === 'low' ? 'var(--sev-low)' : 'var(--accent-cyan)';
+            return (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: idx < parsedData.findings.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+                <span style={{ color: 'var(--text-primary)', fontSize: '11px' }}>
+                  {f.name || f.title || f.msg || f.vulnerability || 'Vulnerability'}
+                </span>
+                <span style={{ color: sevColor, textTransform: 'uppercase', fontSize: '10px', fontWeight: 600, marginLeft: 8, whiteSpace: 'nowrap' }}>
+                  {sev}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return null;
 };
 
@@ -322,7 +352,7 @@ export function ScanDetailPage() {
                           Error: {result.error}
                         </div>
                       )}
-                      {result.exit_code !== undefined && (
+                      {result.exit_code !== undefined && result.exit_code !== null && (
                         <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>
                           Exit Code: {result.exit_code}
                         </div>

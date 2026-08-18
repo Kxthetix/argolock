@@ -91,6 +91,8 @@ class ZAPTool:
             parsed = self._parse_alerts(alerts, target)
             result.parsed_data = parsed
             result.status = ToolStatus.COMPLETED
+            result.exit_code = 0
+            result.raw_output = f"[OWASP ZAP Active Scan Complete] Processed {len(alerts)} alerts for {target}"
 
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError,
                 httpx.ReadError, Exception) as exc:
@@ -106,13 +108,16 @@ class ZAPTool:
                 logger.warning(f"[zap] ZAP error: {exc}. Running Python fallback.")
 
             try:
-                fallback_data = await self._python_fallback_scan(target)
+                fallback_data, probe_logs = await self._python_fallback_scan(target)
                 result.parsed_data = fallback_data
                 result.status = ToolStatus.COMPLETED
-                result.raw_output = f"[ZAP API offline — Python fallback scan completed] Findings: {fallback_data['total']}"
+                result.exit_code = 0
+                result.raw_output = probe_logs
             except Exception as fallback_exc:
                 result.status = ToolStatus.FAILED
+                result.exit_code = 1
                 result.error = f"ZAP API offline and fallback failed: {fallback_exc}"
+                result.raw_output = f"[-] ZAP API unreachable at {self.base_url}\n[-] Fallback failed: {fallback_exc}"
                 logger.error(f"ZAP fallback failed: {fallback_exc}")
 
         result.completed_at = datetime.utcnow()
@@ -123,27 +128,93 @@ class ZAPTool:
 
     # ── Python fallback scanner ───────────────────────────────────────────────
 
-    async def _python_fallback_scan(self, target: str) -> Dict[str, Any]:
+    async def _python_fallback_scan(self, target: str) -> tuple[Dict[str, Any], str]:
         """Perform a real lightweight security scan using Python httpx."""
         findings: List[Dict[str, Any]] = []
+        logs: List[str] = [
+            f"[*] OWASP ZAP REST API at {self.base_url} is offline/unreachable.",
+            f"[*] Automatically engaged native Python Web Vulnerability Probe engine.",
+            f"[*] Target URL: {target}",
+            f"[*] Executing passive & active security policy checks...\n",
+        ]
 
         try:
             async with httpx.AsyncClient(
                 timeout=15, follow_redirects=True, verify=False
             ) as client:
                 resp = await client.get(target)
+                logs.append(f"[+] Initial GET request succeeded: HTTP {resp.status_code} ({len(resp.content)} bytes)")
 
+                # CORS
+                prev_count = len(findings)
                 await self._check_cors(client, target, resp, findings)
+                if len(findings) > prev_count:
+                    logs.append(f"  [!] CORS Misconfiguration: {findings[-1]['name']} ({findings[-1]['severity'].upper()})")
+                else:
+                    logs.append(f"  [+] CORS Policy: OK")
+
+                # Cookie Flags
+                prev_count = len(findings)
                 self._check_cookie_flags(resp, target, findings)
+                if len(findings) > prev_count:
+                    logs.append(f"  [!] Cookie Security: {findings[-1]['name']} ({findings[-1]['severity'].upper()})")
+                else:
+                    logs.append(f"  [+] Cookie Security: OK / No insecure cookies")
+
+                # CSRF in Forms
+                prev_count = len(findings)
                 await self._check_csrf_in_forms(client, resp, target, findings)
+                if len(findings) > prev_count:
+                    logs.append(f"  [!] Form CSRF Protection: {findings[-1]['name']} ({findings[-1]['severity'].upper()})")
+                else:
+                    logs.append(f"  [+] Form CSRF Protection: OK / No unprotected mutating forms")
+
+                # Clickjacking
+                prev_count = len(findings)
                 self._check_clickjacking(resp, target, findings)
+                if len(findings) > prev_count:
+                    logs.append(f"  [!] Anti-Clickjacking: {findings[-1]['name']} ({findings[-1]['severity'].upper()})")
+                else:
+                    logs.append(f"  [+] Anti-Clickjacking: OK")
+
+                # CSP
+                prev_count = len(findings)
                 self._check_csp(resp, target, findings)
+                if len(findings) > prev_count:
+                    logs.append(f"  [!] Content Security Policy: {findings[-1]['name']} ({findings[-1]['severity'].upper()})")
+                else:
+                    logs.append(f"  [+] Content Security Policy: OK")
+
+                # HSTS
+                prev_count = len(findings)
                 self._check_hsts(resp, target, findings)
+                if target.startswith("https://"):
+                    if len(findings) > prev_count:
+                        logs.append(f"  [!] HSTS Security: {findings[-1]['name']} ({findings[-1]['severity'].upper()})")
+                    else:
+                        logs.append(f"  [+] HSTS Security: OK")
+
+                # Server Info Leakage
+                prev_count = len(findings)
                 self._check_server_info_leakage(resp, target, findings)
+                if len(findings) > prev_count:
+                    for f in findings[prev_count:]:
+                        logs.append(f"  [!] Server Info Disclosure: {f['name']} -> {f['evidence']}")
+                else:
+                    logs.append(f"  [+] Server Headers: OK / No version disclosed")
+
+                # HTTP Methods
+                prev_count = len(findings)
                 await self._check_http_methods(client, target, findings)
+                if len(findings) > prev_count:
+                    for f in findings[prev_count:]:
+                        logs.append(f"  [i] HTTP Methods Allowed: {f['name']} -> {f['evidence']}")
+                else:
+                    logs.append(f"  [+] HTTP Methods: Standard methods only")
 
         except httpx.RequestError as exc:
             logger.warning(f"[zap-fallback] Request error: {exc}")
+            logs.append(f"\n[-] Network error during probe: {exc}")
             findings.append({
                 "name": "Target Connectivity Issue",
                 "severity": "info",
@@ -159,11 +230,13 @@ class ZAPTool:
                 "alert_ref": "",
             })
 
+        logs.append(f"\n[+] Fallback Security Scan Complete: {len(findings)} vulnerability findings detected.")
+
         return {
             "findings": findings,
             "total": len(findings),
             "target": target,
-        }
+        }, "\n".join(logs)
 
     async def _check_cors(
         self, client: httpx.AsyncClient, target: str,
