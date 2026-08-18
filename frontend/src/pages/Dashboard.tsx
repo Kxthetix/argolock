@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Scan } from '../lib/api';
+import { api, Scan, parseUtcDate } from '../lib/api';
 import { ScanProgress } from '../components/ScanProgress';
 import { SeverityBadge } from '../components/SeverityBadge';
 import {
@@ -233,7 +233,7 @@ export function Dashboard() {
                     <td style={{ color: 'var(--sev-critical)', fontWeight: 700 }}>{scan.critical_count}</td>
                     <td style={{ color: 'var(--sev-high)', fontWeight: 700 }}>{scan.high_count}</td>
                     <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                      {scan.created_at ? formatDistanceToNow(new Date(scan.created_at), { addSuffix: true }) : '—'}
+                      {scan.created_at ? formatDistanceToNow(parseUtcDate(scan.created_at), { addSuffix: true }) : '—'}
                     </td>
                     <td>
                       <Link to={`/scans/${scan.id}`} className="btn btn-outline btn-sm">

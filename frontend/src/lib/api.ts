@@ -256,5 +256,23 @@ export const api = {
   },
 };
 
+// ── Date Utility ─────────────────────────────────────────────────────────────
+
+/**
+ * Safely parse ISO date strings from backend APIs.
+ * Ensures UTC timestamps missing a timezone designation ('Z') are treated as UTC,
+ * preventing local timezone offset shifts (e.g. 5.5 hours skew).
+ */
+export function parseUtcDate(dateInput?: string | Date | null): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return dateInput;
+  let s = String(dateInput).trim();
+  if (s.includes('T') && !s.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(s)) {
+    s += 'Z';
+  }
+  return new Date(s);
+}
+
 // Export API base path for direct URL construction
 export { API_BASE };
+

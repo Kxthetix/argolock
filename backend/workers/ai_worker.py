@@ -1,7 +1,7 @@
 """AI worker — orchestrates all 4 AI agents after scanning completes."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from loguru import logger
@@ -137,7 +137,7 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
                 "status": "completed",
                 "current_phase": "Complete",
                 "progress_percent": 100,
-                "completed_at": datetime.utcnow().isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             }}
         )
         _log(scan_id, "success", "🎉 ArgoLock scan complete! View your report in the dashboard.")

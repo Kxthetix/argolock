@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, Scan } from '../lib/api';
+import { api, Scan, parseUtcDate } from '../lib/api';
 import { ScanForm } from '../components/ScanForm';
 import { ScanProgress } from '../components/ScanProgress';
 import { SeverityBadge } from '../components/SeverityBadge';
@@ -105,7 +105,7 @@ export function ScansPage() {
                         {scan.high_count > 0 && <span className="badge badge-high">{scan.high_count} High</span>}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {scan.created_at ? formatDistanceToNow(new Date(scan.created_at), { addSuffix: true }) : ''}
+                        {scan.created_at ? formatDistanceToNow(parseUtcDate(scan.created_at), { addSuffix: true }) : ''}
                       </div>
                     </div>
                   </div>

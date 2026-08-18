@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, Scan, Finding } from '../lib/api';
+import { api, Scan, Finding, parseUtcDate } from '../lib/api';
 import { ScanProgress } from '../components/ScanProgress';
 import { FindingsTable } from '../components/FindingsTable';
 import { LogStream, LogEntry } from '../components/LogStream';
@@ -224,7 +224,7 @@ export function ScanDetailPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>{scan.scope?.target}</h1>
           <p className="text-secondary" style={{ fontSize: 12, marginTop: 2 }}>
             {scan.name && scan.name !== `Scan of ${scan.scope?.target}` ? `${scan.name} · ` : ''}
-            Created {scan.created_at ? formatDistanceToNow(new Date(scan.created_at), { addSuffix: true }) : '—'}
+            Created {scan.created_at ? formatDistanceToNow(parseUtcDate(scan.created_at), { addSuffix: true }) : '—'}
           </p>
         </div>
         {report?.pdf_path && (
@@ -508,8 +508,8 @@ export function ScanDetailPage() {
               <Detail label="Progress" value={`${scan.progress_percent}%`} />
               <Detail label="Safe Mode" value={scan.config?.safe_mode ? 'Enabled' : 'Disabled'} />
               <Detail label="Exploitation" value={scan.config?.enable_exploitation ? 'Enabled' : 'Disabled'} />
-              <Detail label="Created" value={scan.created_at ? format(new Date(scan.created_at), 'MMM dd, yyyy HH:mm') : '—'} />
-              <Detail label="Completed" value={scan.completed_at ? format(new Date(scan.completed_at), 'MMM dd, yyyy HH:mm') : '—'} />
+              <Detail label="Created" value={scan.created_at ? format(parseUtcDate(scan.created_at), 'MMM dd, yyyy HH:mm') : '—'} />
+              <Detail label="Completed" value={scan.completed_at ? format(parseUtcDate(scan.completed_at), 'MMM dd, yyyy HH:mm') : '—'} />
             </div>
           </div>
         </>

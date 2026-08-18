@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -17,11 +17,21 @@ router = APIRouter()
 
 
 def _serialize(doc: dict) -> dict:
-    """Convert MongoDB ObjectId and datetime for JSON serialization."""
+    """Convert MongoDB ObjectId and datetime for JSON serialization with explicit UTC 'Z' suffix."""
+    if not doc:
+        return doc
     doc.pop("_id", None)
-    for k, v in doc.items():
+    for k, v in list(doc.items()):
         if isinstance(v, datetime):
-            doc[k] = v.isoformat()
+            if v.tzinfo is None:
+                v = v.replace(tzinfo=timezone.utc)
+            doc[k] = v.isoformat().replace("+00:00", "Z")
+        elif isinstance(v, dict):
+            _serialize(v)
+        elif isinstance(v, list):
+            for item in v:
+                if isinstance(item, dict):
+                    _serialize(item)
     return doc
 
 
@@ -46,6 +56,7 @@ async def create_scan(request: CreateScanRequest):
         status=ScanStatus.PENDING,
     )
 
+    doc_data = _serialize(scan.model_dump())
     await db["scans"].insert_one(scan.model_dump())
     logger.info(f"Scan {scan.id} created for target: {request.scope.target}")
 
@@ -62,6 +73,7 @@ async def list_scans(skip: int = 0, limit: int = 20):
     db = get_db()
     cursor = db["scans"].find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
     scans = await cursor.to_list(length=limit)
+    scans = [_serialize(s) for s in scans]
     return {"scans": scans, "skip": skip, "limit": limit}
 
 
@@ -72,7 +84,7 @@ async def get_scan(scan_id: str):
     doc = await db["scans"].find_one({"id": scan_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Scan not found")
-    return doc
+    return _serialize(doc)
 
 
 @router.get("/{scan_id}/findings")
@@ -135,6 +147,7 @@ async def get_scan_findings(
             )
 
     total = await db["findings"].count_documents(query)
+    findings = [_serialize(f) for f in findings]
     return {"findings": findings, "total": total, "skip": skip, "limit": limit}
 
 
@@ -144,7 +157,7 @@ async def cancel_scan(scan_id: str):
     db = get_db()
     result = await db["scans"].update_one(
         {"id": scan_id, "status": {"$in": ["pending", "running", "recon", "scanning"]}},
-        {"$set": {"status": ScanStatus.CANCELLED.value, "completed_at": datetime.utcnow().isoformat()}}
+        {"$set": {"status": ScanStatus.CANCELLED.value, "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}}
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Scan not found or not cancellable")

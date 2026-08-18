@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from loguru import logger
@@ -60,7 +60,7 @@ class ReportAgent(BaseAgent):
             "report_id": str(uuid.uuid4()),
             "scan_id": scan_id,
             "target": target,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "executive_summary": executive_summary,
             "risk_score": risk_score,
             "risk_rating": risk_rating,

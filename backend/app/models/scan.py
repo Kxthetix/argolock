@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 import uuid
 
 from pydantic import BaseModel, Field
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 # ── Enumerations ──────────────────────────────────────────────────────────────
@@ -119,7 +123,7 @@ class ScanDocument(BaseModel):
     status: ScanStatus = ScanStatus.PENDING
     current_phase: Optional[str] = None
     progress_percent: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     tool_results: Dict[str, ToolResult] = Field(default_factory=dict)
@@ -133,3 +137,6 @@ class ScanDocument(BaseModel):
 
     class Config:
         use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: (v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v).isoformat().replace("+00:00", "Z")
+        }

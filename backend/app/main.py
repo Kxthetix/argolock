@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
     
     # ── Startup database cleanup ──────────────────────────────────────────────
     try:
-        from datetime import datetime
+        from datetime import datetime, timezone
         from app.database import get_db
         db = get_db()
         ongoing_statuses = ["pending", "running", "recon", "scanning", "exploiting", "ai_analysis", "reporting"]
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
             {"$set": {
                 "status": "failed",
                 "error": "Scan interrupted due to server restart",
-                "completed_at": datetime.utcnow().isoformat()
+                "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             }}
         )
         if result.modified_count > 0:

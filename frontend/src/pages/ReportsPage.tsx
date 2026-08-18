@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, parseUtcDate } from '../lib/api';
 import { FileText, Download, ExternalLink, AlertTriangle } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -80,7 +80,7 @@ export function ReportsPage() {
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                       Generated {report.generated_at
-                        ? formatDistanceToNow(new Date(report.generated_at), { addSuffix: true })
+                        ? formatDistanceToNow(parseUtcDate(report.generated_at), { addSuffix: true })
                         : '—'}
                     </div>
                   </div>
