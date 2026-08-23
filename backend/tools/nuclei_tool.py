@@ -1,10 +1,8 @@
 """Nuclei tool — template-based vulnerability scanning.
 
-When the ``nuclei`` binary is not installed, this module performs a real
-HTTP-based template and security probe against the target: checks for exposed
-sensitive files, configuration disclosures, misconfigured headers, actuator/debug
-endpoints, and common vulnerability indicators.
-All results are from actual live network probes — no fake data.
+When the ``nuclei`` binary is not installed in PATH or Docker is unavailable,
+this module executes a native Python template security probe against the target
+to audit sensitive file exposures, CVE path traversals, and HTTP security misconfigurations.
 """
 from __future__ import annotations
 
@@ -21,189 +19,176 @@ from app.config import settings
 from tools.base_tool import BaseTool
 
 
-# ── Template Probe Definitions ───────────────────────────────────────────────
-_SENSITIVE_TEMPLATE_PROBES = [
-    # (path, template_id, name, severity, tags, cvss, cve, cwe, match_regex, description)
-    (
-        "/.env",
-        "env-file-exposure",
-        "Environment Configuration File Exposure",
-        "critical",
-        ["exposure", "config", "env", "credentials"],
-        9.1,
-        [],
-        "CWE-200",
-        r"(DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY|API_KEY|DATABASE_URL|APP_SECRET)=",
-        "Publicly accessible .env configuration file revealing sensitive secrets and credentials."
-    ),
-    (
-        "/.env.local",
-        "env-local-exposure",
-        "Local Environment Configuration File Exposure",
-        "critical",
-        ["exposure", "config", "env", "credentials"],
-        9.1,
-        [],
-        "CWE-200",
-        r"(DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY|API_KEY|DATABASE_URL)=",
-        "Publicly accessible local environment file revealing credentials."
-    ),
-    (
-        "/.git/HEAD",
-        "git-head-exposure",
-        "Git Source Control Repository Exposure",
-        "high",
-        ["exposure", "git", "vcs", "source-code"],
-        7.5,
-        [],
-        "CWE-200",
-        r"ref: refs/heads/",
-        "Exposed .git directory allows attackers to download complete source code and commit history."
-    ),
-    (
-        "/.git/config",
-        "git-config-exposure",
-        "Git Configuration File Exposure",
-        "high",
-        ["exposure", "git", "vcs", "source-code"],
-        7.5,
-        [],
-        "CWE-200",
-        r"\[core\]",
-        "Exposed .git/config revealing repository configuration and remote repository URLs."
-    ),
-    (
-        "/backup.sql",
-        "sql-dump-exposure",
-        "Database SQL Backup Dump Exposure",
-        "high",
-        ["exposure", "backup", "database", "sql"],
-        7.5,
-        [],
-        "CWE-200",
-        r"(CREATE TABLE|INSERT INTO|DROP TABLE)",
-        "Exposed database backup dump file containing table schemas and potentially sensitive data."
-    ),
-    (
-        "/dump.sql",
-        "sql-dump-exposure",
-        "Database SQL Backup Dump Exposure",
-        "high",
-        ["exposure", "backup", "database", "sql"],
-        7.5,
-        [],
-        "CWE-200",
-        r"(CREATE TABLE|INSERT INTO|DROP TABLE)",
-        "Exposed database dump file containing table schemas and records."
-    ),
-    (
-        "/database.sql",
-        "sql-dump-exposure",
-        "Database SQL Backup Dump Exposure",
-        "high",
-        ["exposure", "backup", "database", "sql"],
-        7.5,
-        [],
-        "CWE-200",
-        r"(CREATE TABLE|INSERT INTO|DROP TABLE)",
-        "Exposed database dump file containing table schemas."
-    ),
-    (
-        "/phpinfo.php",
-        "phpinfo-disclosure",
-        "PHP Configuration Information Disclosure (phpinfo)",
-        "medium",
-        ["exposure", "php", "misconfig", "info-leak"],
-        5.3,
-        [],
-        "CWE-200",
-        r"PHP Version|Configuration File \(php\.ini\) Path|Directive",
-        "phpinfo() diagnostic page is publicly accessible, leaking full PHP and web server configuration."
-    ),
-    (
-        "/server-status",
-        "apache-server-status",
-        "Apache HTTP Server Status Page Exposed",
-        "medium",
-        ["exposure", "apache", "status", "info-leak"],
-        5.3,
-        [],
-        "CWE-200",
-        r"Apache Server Status|Server Version:|Current Time:",
-        "Apache server-status page exposes real-time requests, client IPs, and server metrics."
-    ),
-    (
-        "/actuator/health",
-        "springboot-actuator-health",
-        "Spring Boot Actuator Health Endpoint Exposed",
-        "low",
-        ["exposure", "springboot", "actuator", "discovery"],
-        3.1,
-        [],
-        "CWE-200",
-        r'\{"status":"(UP|DOWN|UNKNOWN)"',
-        "Spring Boot Actuator health endpoint is publicly accessible without authentication."
-    ),
-    (
-        "/actuator/env",
-        "springboot-actuator-env",
-        "Spring Boot Actuator Environment Endpoint Exposed",
-        "high",
-        ["exposure", "springboot", "actuator", "env", "secrets"],
-        7.5,
-        [],
-        "CWE-200",
-        r'("propertySources":|"activeProfiles":)',
-        "Spring Boot Actuator env endpoint exposes environment variables and configuration properties."
-    ),
-    (
-        "/metrics",
-        "prometheus-metrics-exposed",
-        "Prometheus Metrics Endpoint Exposed",
-        "medium",
-        ["exposure", "metrics", "prometheus", "info-leak"],
-        5.3,
-        [],
-        "CWE-200",
-        r"(go_goroutines|http_requests_total|process_cpu_seconds_total)",
-        "Prometheus application metrics endpoint is exposed without authentication."
-    ),
-    (
-        "/swagger.json",
-        "swagger-api-docs-exposure",
-        "Swagger API Documentation JSON Exposed",
-        "low",
-        ["exposure", "swagger", "api", "discovery"],
-        2.5,
-        [],
-        "CWE-200",
-        r'("swagger":|"openapi":)',
-        "Swagger API specification is publicly reachable, detailing internal API routes and schemas."
-    ),
-    (
-        "/openapi.json",
-        "openapi-spec-exposure",
-        "OpenAPI Specification Exposed",
-        "low",
-        ["exposure", "openapi", "api", "discovery"],
-        2.5,
-        [],
-        "CWE-200",
-        r'("openapi":|"paths":)',
-        "OpenAPI specification document is accessible, exposing REST endpoints and parameter schemas."
-    ),
-    (
-        "/cgi-bin/.%2e/.%2e/.%2e/.%2e/etc/passwd",
-        "CVE-2021-41773",
-        "Apache 2.4.49 - Path Traversal & Remote Code Execution",
-        "critical",
-        ["cve", "cve2021", "apache", "rce", "lfi", "traversal"],
-        9.8,
-        ["CVE-2021-41773"],
-        "CWE-22",
-        r"root:.*:0:0:",
-        "Path traversal vulnerability in Apache HTTP Server 2.4.49 allows unauthenticated remote attackers to read arbitrary files."
-    ),
+# ── Built-in Template Probes ──────────────────────────────────────────────────
+_SENSITIVE_TEMPLATE_PROBES: List[Dict[str, Any]] = [
+    {
+        "path": "/.env",
+        "template_id": "env-file-exposure",
+        "name": "Environment Configuration File Exposure (.env)",
+        "severity": "critical",
+        "tags": ["exposure", "config", "env", "credentials"],
+        "cvss": 9.1,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"(DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY|API_KEY|DATABASE_URL|APP_SECRET)=",
+        "description": "Publicly accessible .env configuration file revealing sensitive application credentials and secrets.",
+    },
+    {
+        "path": "/.env.local",
+        "template_id": "env-local-exposure",
+        "name": "Local Environment File Exposure (.env.local)",
+        "severity": "critical",
+        "tags": ["exposure", "config", "env", "credentials"],
+        "cvss": 9.1,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"(DB_PASSWORD|SECRET_KEY|AWS_SECRET_ACCESS_KEY|API_KEY|DATABASE_URL)=",
+        "description": "Publicly accessible local environment file revealing database or API credentials.",
+    },
+    {
+        "path": "/.git/HEAD",
+        "template_id": "git-head-exposure",
+        "name": "Git Source Repository Exposure (.git/HEAD)",
+        "severity": "high",
+        "tags": ["exposure", "git", "vcs", "source-code"],
+        "cvss": 7.5,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"ref: refs/heads/",
+        "description": "Exposed .git directory allows remote attackers to dump repository source code and commit history.",
+    },
+    {
+        "path": "/.git/config",
+        "template_id": "git-config-exposure",
+        "name": "Git Configuration File Exposure (.git/config)",
+        "severity": "high",
+        "tags": ["exposure", "git", "vcs", "source-code"],
+        "cvss": 7.5,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"\[core\]",
+        "description": "Exposed .git/config revealing repository configuration and remote repository URLs.",
+    },
+    {
+        "path": "/backup.sql",
+        "template_id": "sql-dump-exposure",
+        "name": "Database Backup SQL Dump Exposure",
+        "severity": "high",
+        "tags": ["exposure", "backup", "database", "sql"],
+        "cvss": 7.5,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"(CREATE TABLE|INSERT INTO|DROP TABLE)",
+        "description": "Exposed database SQL backup file containing schema and records.",
+    },
+    {
+        "path": "/dump.sql",
+        "template_id": "sql-dump-exposure",
+        "name": "Database Dump File Exposure",
+        "severity": "high",
+        "tags": ["exposure", "backup", "database", "sql"],
+        "cvss": 7.5,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"(CREATE TABLE|INSERT INTO|DROP TABLE)",
+        "description": "Exposed database dump file containing table schemas and records.",
+    },
+    {
+        "path": "/phpinfo.php",
+        "template_id": "phpinfo-disclosure",
+        "name": "PHP Configuration Information Disclosure (phpinfo)",
+        "severity": "medium",
+        "tags": ["exposure", "php", "misconfig", "info-leak"],
+        "cvss": 5.3,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"PHP Version|Configuration File \(php\.ini\) Path|Directive",
+        "description": "phpinfo() diagnostic page is publicly accessible, leaking full PHP and web server configuration.",
+    },
+    {
+        "path": "/server-status",
+        "template_id": "apache-server-status",
+        "name": "Apache HTTP Server Status Page Exposed",
+        "severity": "medium",
+        "tags": ["exposure", "apache", "status", "info-leak"],
+        "cvss": 5.3,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"Apache Server Status|Server Version:|Current Time:",
+        "description": "Apache server-status page exposes real-time requests, client IPs, and server metrics.",
+    },
+    {
+        "path": "/actuator/health",
+        "template_id": "springboot-actuator-health",
+        "name": "Spring Boot Actuator Health Endpoint Exposed",
+        "severity": "low",
+        "tags": ["exposure", "springboot", "actuator", "discovery"],
+        "cvss": 3.1,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r'\{"status":"(UP|DOWN|UNKNOWN)"',
+        "description": "Spring Boot Actuator health endpoint is publicly accessible without authentication.",
+    },
+    {
+        "path": "/actuator/env",
+        "template_id": "springboot-actuator-env",
+        "name": "Spring Boot Actuator Environment Endpoint Exposed",
+        "severity": "high",
+        "tags": ["exposure", "springboot", "actuator", "env", "secrets"],
+        "cvss": 7.5,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r'("propertySources":|"activeProfiles":)',
+        "description": "Spring Boot Actuator env endpoint exposes environment variables and configuration properties.",
+    },
+    {
+        "path": "/metrics",
+        "template_id": "prometheus-metrics-exposed",
+        "name": "Prometheus Metrics Endpoint Exposed",
+        "severity": "medium",
+        "tags": ["exposure", "metrics", "prometheus", "info-leak"],
+        "cvss": 5.3,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r"(go_goroutines|http_requests_total|process_cpu_seconds_total)",
+        "description": "Prometheus application metrics endpoint is exposed without authentication.",
+    },
+    {
+        "path": "/swagger.json",
+        "template_id": "swagger-api-docs-exposure",
+        "name": "Swagger API Documentation JSON Exposed",
+        "severity": "low",
+        "tags": ["exposure", "swagger", "api", "discovery"],
+        "cvss": 2.5,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r'("swagger":|"openapi":)',
+        "description": "Swagger API specification is publicly reachable, detailing internal API routes and schemas.",
+    },
+    {
+        "path": "/openapi.json",
+        "template_id": "openapi-spec-exposure",
+        "name": "OpenAPI Specification Exposed",
+        "severity": "low",
+        "tags": ["exposure", "openapi", "api", "discovery"],
+        "cvss": 2.5,
+        "cve": [],
+        "cwe": "CWE-200",
+        "pattern": r'("openapi":|"paths":)',
+        "description": "OpenAPI specification document is accessible, exposing REST endpoints and parameter schemas.",
+    },
+    {
+        "path": "/cgi-bin/.%2e/.%2e/.%2e/.%2e/etc/passwd",
+        "template_id": "CVE-2021-41773",
+        "name": "Apache 2.4.49 - Path Traversal & Remote Code Execution",
+        "severity": "critical",
+        "tags": ["cve", "cve2021", "apache", "rce", "lfi", "traversal"],
+        "cvss": 9.8,
+        "cve": ["CVE-2021-41773"],
+        "cwe": "CWE-22",
+        "pattern": r"root:.*:0:0:",
+        "description": "Path traversal vulnerability in Apache HTTP Server 2.4.49 allows unauthenticated remote attackers to read arbitrary files.",
+    },
 ]
 
 
@@ -256,36 +241,37 @@ class NucleiTool(BaseTool):
                     logger.warning(f"[nuclei] Base HTTP request failed: {exc}")
 
                 # 2. Sensitive files and path probes
-                for path, template_id, name, severity, tags, cvss, cves, cwe, pattern, desc in _SENSITIVE_TEMPLATE_PROBES:
-                    if requested_severities and severity not in requested_severities:
+                for probe in _SENSITIVE_TEMPLATE_PROBES:
+                    sev = probe["severity"]
+                    if requested_severities and sev not in requested_severities:
                         continue
-                    probe_url = urllib.parse.urljoin(base_target, path)
+                    probe_url = urllib.parse.urljoin(base_target, probe["path"])
                     try:
                         probe_resp = client.get(probe_url)
                         if probe_resp.status_code == 200 and probe_resp.text:
-                            if re.search(pattern, probe_resp.text, re.IGNORECASE):
+                            if re.search(probe["pattern"], probe_resp.text, re.IGNORECASE):
                                 finding_obj = {
-                                    "template-id": template_id,
+                                    "template-id": probe["template_id"],
                                     "info": {
-                                        "name": name,
+                                        "name": probe["name"],
                                         "author": ["argolock-scanner"],
-                                        "tags": tags,
-                                        "severity": severity,
-                                        "description": desc,
+                                        "tags": probe["tags"],
+                                        "severity": sev,
+                                        "description": probe["description"],
                                         "reference": [
-                                            "https://cwe.mitre.org/data/definitions/" + cwe.replace("CWE-", "") + ".html"
-                                        ] if cwe else [],
+                                            f"https://cwe.mitre.org/data/definitions/{probe['cwe'].replace('CWE-', '')}.html"
+                                        ] if probe.get("cwe") else [],
                                         "classification": {
-                                            "cvss-score": cvss,
-                                            "cve-id": cves,
-                                            "cwe-id": [cwe] if cwe else [],
+                                            "cvss-score": probe["cvss"],
+                                            "cve-id": probe["cve"],
+                                            "cwe-id": [probe["cwe"]] if probe.get("cwe") else [],
                                         },
                                     },
                                     "type": "http",
                                     "host": host,
                                     "matched-at": probe_url,
                                     "extracted-results": [],
-                                    "request": f"GET {path} HTTP/1.1\nHost: {host}",
+                                    "request": f"GET {probe['path']} HTTP/1.1\nHost: {host}",
                                     "response": f"HTTP/1.1 {probe_resp.status_code} OK\n" + probe_resp.text[:1500],
                                     "ip": ip_addr,
                                     "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
