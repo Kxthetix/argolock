@@ -21,10 +21,7 @@ def anyio_backend():
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
@@ -39,17 +36,16 @@ async def client():
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
-async def clean_test_db(event_loop):
+async def clean_test_db():
     """Clean up the test database after the test session finishes."""
     yield
-    # Attempt to drop test DB; silently skip if MongoDB is not reachable
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
         client = AsyncIOMotorClient(settings.mongodb_url, serverSelectionTimeoutMS=3000)
         await client.drop_database("argolock_test")
         client.close()
     except Exception:
-        pass  # MongoDB not running — nothing to clean up
+        pass
 
 
 @pytest.fixture(autouse=True)

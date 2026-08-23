@@ -63,6 +63,7 @@ class ExploitationStageInfo(BaseModel):
 def default_exploitation_stages() -> Dict[str, ExploitationStageInfo]:
     return {
         "web_app": ExploitationStageInfo(name="Web Application Exploits"),
+        "xss": ExploitationStageInfo(name="Cross-Site Scripting (XSS)"),
         "network": ExploitationStageInfo(name="Network Exploits"),
         "system_host": ExploitationStageInfo(name="System & Host Exploits"),
         "personnel_social": ExploitationStageInfo(name="Personnel & Social Engineering Exploits"),

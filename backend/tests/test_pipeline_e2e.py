@@ -16,10 +16,9 @@ from workers.exploit_worker import run_exploit
 from workers.ai_worker import run_ai_analysis
 
 
-@pytest.mark.asyncio
-async def test_pipeline_e2e_execution(client):
+def test_pipeline_e2e_execution():
     """Test full pipeline execution from recon to scanning, exploitation, and AI analysis."""
-    db = get_db()
+    db_sync = _get_db_sync()
     scan_id = str(uuid.uuid4())
     
     # 1. Create a dummy scan document in MongoDB
@@ -41,7 +40,7 @@ async def test_pipeline_e2e_execution(client):
         "progress_percent": 0,
         "created_at": datetime.utcnow().isoformat(),
     }
-    await db["scans"].insert_one(scan_doc)
+    db_sync["scans"].insert_one(scan_doc)
     
     # 2. Run run_recon synchronously
     # We pass the scan_data directly
@@ -50,7 +49,6 @@ async def test_pipeline_e2e_execution(client):
     assert recon_results["target"] == "scanme.nmap.org"
     
     # Verify DB state after recon
-    db_sync = _get_db_sync()
     scan_after_recon = db_sync["scans"].find_one({"id": scan_id})
     assert scan_after_recon["status"] == "recon"
     assert scan_after_recon["current_phase"] == "Recon Complete"
@@ -81,8 +79,7 @@ async def test_pipeline_e2e_execution(client):
     assert scan_after_ai["progress_percent"] == 100
 
 
-@pytest.mark.asyncio
-async def test_celery_chain_e2e(client):
+def test_celery_chain_e2e():
     """Test the Celery chain execution using eager mode to verify argument routing."""
     from workers.celery_app import celery_app, run_full_pipeline
     
@@ -90,7 +87,7 @@ async def test_celery_chain_e2e(client):
     celery_app.conf.task_always_eager = True
     celery_app.conf.task_eager_propagates = True
     
-    db = get_db()
+    db_sync = _get_db_sync()
     scan_id = str(uuid.uuid4())
     
     scan_doc = {
@@ -111,14 +108,13 @@ async def test_celery_chain_e2e(client):
         "progress_percent": 0,
         "created_at": datetime.utcnow().isoformat(),
     }
-    await db["scans"].insert_one(scan_doc)
+    db_sync["scans"].insert_one(scan_doc)
     
     # Trigger the chain
     scan_doc.pop("_id", None)
     run_full_pipeline(scan_id, scan_doc)
     
     # Check if the scan completed successfully in DB
-    db_sync = _get_db_sync()
     scan_after_chain = db_sync["scans"].find_one({"id": scan_id})
     assert scan_after_chain["status"] == "completed"
     assert scan_after_chain["progress_percent"] == 100
