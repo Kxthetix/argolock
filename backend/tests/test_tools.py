@@ -393,7 +393,7 @@ class TestZAPTool:
         from tools.zap_tool import ZAPTool
         tool = ZAPTool()
         # Run fallback directly
-        data = await tool._python_fallback_scan(TARGET_HTTP)
+        data, _ = await tool._python_fallback_scan(TARGET_HTTP)
         assert "findings" in data
         assert "total" in data
         assert "target" in data
@@ -405,7 +405,7 @@ class TestZAPTool:
         """Python fallback must detect missing X-Frame-Options on scanme.nmap.org."""
         from tools.zap_tool import ZAPTool
         tool = ZAPTool()
-        data = await tool._python_fallback_scan(TARGET_HTTP)
+        data, _ = await tool._python_fallback_scan(TARGET_HTTP)
         finding_names = [f["name"] for f in data["findings"]]
         # scanme.nmap.org almost certainly lacks X-Frame-Options
         assert any(

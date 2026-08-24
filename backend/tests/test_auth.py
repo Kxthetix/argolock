@@ -12,7 +12,7 @@ def test_argon2id_hashing():
     assert verify_password(hashed, "wrongpassword") is False
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_user_registration_on_first_login(client):
     """Verify that a user is registered when logging in for the first time."""
     email = "newuser@argolock.com"
@@ -37,7 +37,7 @@ async def test_user_registration_on_first_login(client):
     assert user["password_hash"].startswith("$argon2id$")
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_user_login_success(client):
     """Verify that an existing user can log in with correct credentials."""
     email = "existinguser@argolock.com"
@@ -61,7 +61,7 @@ async def test_user_login_success(client):
     assert data["email"] == email
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_user_login_invalid_password(client):
     """Verify that login fails when using an incorrect password."""
     email = "existinguser@argolock.com"
@@ -73,7 +73,7 @@ async def test_user_login_invalid_password(client):
     assert response.json()["detail"] == "Invalid email or password"
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_protected_me_route(client):
     """Verify that the /me route validates the JWT and returns user profile without password_hash."""
     email = "meuser@argolock.com"
@@ -100,7 +100,7 @@ async def test_protected_me_route(client):
     assert "id" in data
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_explicit_registration(client):
     """Verify that a user can explicitly register with a name, email, and password."""
     email = "register_test@argolock.com"
@@ -124,7 +124,7 @@ async def test_explicit_registration(client):
     assert user["auth_provider"] == "email"
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_otp_send_and_verify(client):
     """Verify the OTP send, DB storage, and verification flow."""
     email = "otp_test@argolock.com"

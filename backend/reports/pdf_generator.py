@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -273,7 +273,7 @@ async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
             })
 
     # 5. Metadata JSON dumps for page 6
-    generated_at_str = report_data.get("generated_at") or datetime.utcnow().isoformat()
+    generated_at_str = report_data.get("generated_at") or datetime.now(timezone.utc).isoformat()
     ai_analysis_meta = {
         "version": "1.0",
         "generated_at": generated_at_str,

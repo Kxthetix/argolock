@@ -2,7 +2,7 @@ import pytest
 from app.database import get_db
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_health_check(client):
     """Verify that the health check endpoint returns 200 and correct payload."""
     response = await client.get("/api/health")
@@ -10,7 +10,7 @@ async def test_health_check(client):
     assert response.json() == {"status": "ok", "service": "ArgoLock Backend"}
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_create_scan_invalid_scope(client):
     """Verify that creating a scan with unauthorized scope fails with 400."""
     payload = {
@@ -27,7 +27,7 @@ async def test_create_scan_invalid_scope(client):
     assert "Scope validation failed" in response.json()["detail"]
 
 
-@pytest.mark.asyncio(scope="session")
+@pytest.mark.asyncio
 async def test_create_and_get_scan(client, mock_celery_pipeline):
     """Verify scan creation, DB persistence, scan retrieval, and list functionality."""
     payload = {

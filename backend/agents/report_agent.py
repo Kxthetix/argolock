@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
+# pyrefly: ignore [missing-import]
 from loguru import logger
 
 from agents.base_agent import BaseAgent
@@ -112,7 +113,7 @@ class ReportAgent(BaseAgent):
         prompt = f"""Write a professional executive summary for a penetration test report.
 
 Target: {target}
-Assessment Date: {datetime.utcnow().strftime('%Y-%m-%d')}
+Assessment Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}
 Total Findings: {total}
 Critical: {severities['critical']} | High: {severities['high']} | Medium: {severities['medium']} | Low: {severities['low']}
 

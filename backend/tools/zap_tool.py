@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import re
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from loguru import logger
@@ -53,7 +53,7 @@ class ZAPTool:
         result = ToolResult(
             tool_name=self.name,
             status=ToolStatus.RUNNING,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
         try:
@@ -120,7 +120,7 @@ class ZAPTool:
                 result.raw_output = f"[-] ZAP API unreachable at {self.base_url}\n[-] Fallback failed: {fallback_exc}"
                 logger.error(f"ZAP fallback failed: {fallback_exc}")
 
-        result.completed_at = datetime.utcnow()
+        result.completed_at = datetime.now(timezone.utc)
         if result.started_at:
             result.duration_seconds = (result.completed_at - result.started_at).total_seconds()
 

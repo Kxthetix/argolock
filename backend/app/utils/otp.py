@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 import smtplib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Any
 
@@ -27,7 +27,8 @@ async def store_otp(email: str, code: str, db: Any) -> None:
     # Ensure TTL index exists (idempotent – MongoDB ignores if already present)
     await collection.create_index("expires_at", expireAfterSeconds=0)
 
-    expires_at = datetime.utcnow() + timedelta(minutes=settings.otp_expiry_minutes)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=settings.otp_expiry_minutes)
 
     # Upsert: one active OTP per email at any time
     await collection.update_one(
@@ -36,7 +37,7 @@ async def store_otp(email: str, code: str, db: Any) -> None:
             "$set": {
                 "code": code,
                 "expires_at": expires_at,
-                "created_at": datetime.utcnow(),
+                "created_at": now,
             }
         },
         upsert=True,
@@ -57,10 +58,15 @@ async def verify_otp(email: str, code: str, db: Any) -> bool:
         return False
 
     # Expired check (belt-and-suspenders; TTL index also removes stale docs)
-    if record.get("expires_at") and record["expires_at"] < datetime.utcnow():
-        await collection.delete_one({"_id": record["_id"]})
-        logger.warning(f"🔑 [OTP] Verification failed for {email}: code expired")
-        return False
+    now = datetime.now(timezone.utc)
+    if record.get("expires_at"):
+        exp = record["expires_at"]
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < now:
+            await collection.delete_one({"_id": record["_id"]})
+            logger.warning(f"🔑 [OTP] Verification failed for {email}: code expired")
+            return False
 
     # Delete after successful verification (single-use)
     await collection.delete_one({"_id": record["_id"]})

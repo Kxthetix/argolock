@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -19,5 +19,5 @@ class UserDocument(BaseModel):
     auth_provider: str = Field(default="email", description="Authentication provider: email | google | github")
     provider_id: Optional[str] = Field(None, description="OAuth provider user ID")
     email_verified: bool = Field(default=False, description="Whether email has been verified via OTP")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

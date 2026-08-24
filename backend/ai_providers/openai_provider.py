@@ -12,7 +12,7 @@ from app.config import settings
 
 class OpenAIProvider(BaseProvider):
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        self.client = AsyncOpenAI(api_key=settings.openai_api_key, max_retries=1, timeout=10.0)
         self.model = settings.openai_model
 
     async def complete(

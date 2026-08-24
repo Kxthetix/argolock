@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 
 def utc_now() -> datetime:
@@ -136,8 +136,10 @@ class ScanDocument(BaseModel):
     error: Optional[str] = None
     exploitation_stages: Dict[str, ExploitationStageInfo] = Field(default_factory=default_exploitation_stages)
 
-    class Config:
-        use_enum_values = True
-        json_encoders = {
-            datetime: lambda v: (v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v).isoformat().replace("+00:00", "Z")
-        }
+    model_config = ConfigDict(use_enum_values=True)
+    
+    @field_serializer("created_at", "started_at", "completed_at")
+    def serialize_dt(self, v: Optional[datetime]) -> Optional[str]:
+        if v is None:
+            return None
+        return (v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v).isoformat().replace("+00:00", "Z")

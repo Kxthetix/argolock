@@ -73,6 +73,14 @@ async def get_agents_status(current_user: Dict[str, Any] = Depends(get_current_u
             "description": "Calculates Shannon Entropy alongside regex rules to identify exposed high-entropy secrets (API keys, private keys, authentication tokens) in probed files or HTTP responses.",
             "status": "active",
             "prompt_file": ""
+        },
+        {
+            "id": "exploit_agent",
+            "name": "Exploit Agent",
+            "role": "Exploit Stage Vulnerability Auditor & Verifier",
+            "description": "Performs active, non-destructive safety checks on candidate web application vulnerabilities to confirm true exploitability and generate reproduction steps.",
+            "status": "active" if provider_configured else "inactive",
+            "prompt_file": "exploit_verification.txt"
         }
     ]
 

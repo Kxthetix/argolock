@@ -110,11 +110,8 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             )
 
             # Broadcast each finding to dashboard
-            import redis, json
-            from app.config import settings
-            r = redis.from_url(settings.redis_url)
             for f in finding_dicts[:20]:  # Cap broadcast to 20 findings
-                r.publish(f"scan:{scan_id}", json.dumps({"type": "finding", "finding": f}))
+                _broadcast(scan_id, {"type": "finding", "finding": f})
 
         # ── Agent 4: Report Generator ─────────────────────────────────────────────
         _update_scan_status(db, scan_id, "reporting", "Generating Report", 93)
@@ -142,12 +139,9 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
         )
         _log(scan_id, "success", "🎉 ArgoLock scan complete! View your report in the dashboard.")
 
-        import redis, json
-        from app.config import settings
-        r = redis.from_url(settings.redis_url)
-        r.publish(f"scan:{scan_id}", json.dumps({
+        _broadcast(scan_id, {
             "type": "progress", "phase": "Complete", "percent": 100, "status": "completed"
-        }))
+        })
     except Exception as e:
         import os
         import sys

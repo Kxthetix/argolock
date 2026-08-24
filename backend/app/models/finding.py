@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 
 class Severity(str, Enum):
@@ -79,7 +79,6 @@ class Finding(BaseModel):
     cve_ids: List[str] = Field(default_factory=list)
     confirmed: bool = False
     false_positive: bool = False
-    discovered_at: datetime = Field(default_factory=datetime.utcnow)
+    discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)

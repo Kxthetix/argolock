@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 from urllib.parse import urlencode
 
@@ -49,7 +49,7 @@ class OTPVerifyRequest(BaseModel):
 
 def _create_jwt(email: str) -> str:
     """Create a JWT access token that expires in 24 hours."""
-    token_expiry = datetime.utcnow() + timedelta(days=1)
+    token_expiry = datetime.now(timezone.utc) + timedelta(days=1)
     return jwt.encode(
         {"sub": email, "exp": token_expiry},
         settings.secret_key,
@@ -198,7 +198,7 @@ async def otp_verify(request: OTPVerifyRequest):
     else:
         await db["users"].update_one(
             {"email": email},
-            {"$set": {"email_verified": True, "updated_at": datetime.utcnow()}},
+            {"$set": {"email_verified": True, "updated_at": datetime.now(timezone.utc)}},
         )
 
     access_token = _create_jwt(email)
@@ -313,7 +313,7 @@ async def google_callback(code: str):
                     "name": name or user.get("name"),
                     "avatar_url": avatar_url or user.get("avatar_url"),
                     "email_verified": True,
-                    "updated_at": datetime.utcnow(),
+                    "updated_at": datetime.now(timezone.utc),
                 }
             },
         )
@@ -445,7 +445,7 @@ async def github_callback(code: str):
                     "name": name or user.get("name"),
                     "avatar_url": avatar_url or user.get("avatar_url"),
                     "email_verified": True,
-                    "updated_at": datetime.utcnow(),
+                    "updated_at": datetime.now(timezone.utc),
                 }
             },
         )

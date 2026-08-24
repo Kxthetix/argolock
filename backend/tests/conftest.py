@@ -9,35 +9,31 @@ from app.config import settings
 # Force test database configuration
 settings.mongodb_db = "argolock_test"
 
+from workers.celery_app import celery_app
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = True
+celery_app.conf.broker_url = "memory://"
+celery_app.conf.result_backend = "cache+memory://"
+
 from app.database import connect_db, disconnect_db, get_db
 from app.main import app
 
 
-@pytest.fixture(scope="session")
-def anyio_backend():
-    return "asyncio"
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def client():
-    """Yield a test client with lifespan events triggered (startup/shutdown) session-wide."""
+    """Yield a test client with lifespan events triggered (startup/shutdown)."""
     await connect_db()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
     await disconnect_db()
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture
 async def clean_test_db():
-    """Clean up the test database after the test session finishes."""
+    """Clean up the test database after tests."""
     yield
     try:
         from motor.motor_asyncio import AsyncIOMotorClient

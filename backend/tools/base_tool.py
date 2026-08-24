@@ -13,7 +13,7 @@ import subprocess
 import shlex
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
@@ -78,7 +78,7 @@ class BaseTool(ABC):
         result = ToolResult(
             tool_name=self.name,
             status=ToolStatus.RUNNING,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
         stdout, stderr, exit_code = "", "", 0
@@ -151,7 +151,7 @@ class BaseTool(ABC):
             result.error = str(exc)
             logger.error(f"{self.name} failed for {target}: {exc}")
 
-        result.completed_at = datetime.utcnow()
+        result.completed_at = datetime.now(timezone.utc)
         if result.started_at:
             result.duration_seconds = (result.completed_at - result.started_at).total_seconds()
 

@@ -51,14 +51,14 @@ class HttpxProbeTool(BaseTool):
 
     async def run(self, target: str, options: Optional[Dict[str, Any]] = None) -> "ToolResult":
         """Override run to force Python fallback when PD httpx is not present."""
-        from datetime import datetime
+        from datetime import datetime, timezone
         from app.models.scan import ToolResult, ToolStatus
 
         options = options or {}
         result = ToolResult(
             tool_name=self.name,
             status=ToolStatus.RUNNING,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
         try:
             if self._binary_is_pd_httpx():
@@ -82,8 +82,7 @@ class HttpxProbeTool(BaseTool):
             result.error = str(exc)
             logger.error(f"[httpx_probe] failed: {exc}")
 
-        from datetime import datetime
-        result.completed_at = datetime.utcnow()
+        result.completed_at = datetime.now(timezone.utc)
         if result.started_at:
             result.duration_seconds = (
                 result.completed_at - result.started_at

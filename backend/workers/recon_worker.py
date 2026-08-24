@@ -32,13 +32,47 @@ def _get_db_sync():
     return client[settings.mongodb_db]
 
 
+_redis_client = None
+_redis_last_check = 0.0
+_redis_available = True
+
+
+def _get_redis():
+    global _redis_client, _redis_last_check, _redis_available
+    import time
+    now = time.time()
+    if not _redis_available and (now - _redis_last_check < 10.0):
+        return None
+    try:
+        import redis
+        from app.config import settings
+        if _redis_client is None:
+            _redis_client = redis.from_url(settings.redis_url, socket_connect_timeout=0.2, socket_timeout=0.2)
+        return _redis_client
+    except Exception:
+        _redis_last_check = now
+        _redis_available = False
+        return None
+
+
 def _broadcast(scan_id: str, message: dict):
     """Publish WebSocket message via Redis pub/sub."""
-    import redis
-    import json
-    from app.config import settings
-    r = redis.from_url(settings.redis_url)
-    r.publish(f"scan:{scan_id}", json.dumps(message))
+    global _redis_available, _redis_last_check
+    import time
+    now = time.time()
+    if not _redis_available and (now - _redis_last_check < 10.0):
+        return
+    try:
+        import json
+        r = _get_redis()
+        if r is None:
+            return
+        r.publish(f"scan:{scan_id}", json.dumps(message))
+        _redis_available = True
+    except Exception as e:
+        _redis_available = False
+        _redis_last_check = time.time()
+        logger.debug(f"Redis pub/sub broadcast skipped/failed for scan {scan_id}: {e}")
 
 
 def _update_scan_status(db, scan_id: str, status: str, phase: str, percent: int):
