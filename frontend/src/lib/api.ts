@@ -172,11 +172,6 @@ export function clearAuthSession(): void {
 
 export function handleSessionExpired(): void {
   clearAuthSession();
-  const pathname = window.location.pathname;
-  if (!pathname.startsWith('/login') && !pathname.startsWith('/auth/')) {
-    const currentPath = encodeURIComponent(pathname + window.location.search);
-    window.location.href = `/login?expired=true&redirect=${currentPath}`;
-  }
 }
 
 // ── HTTP Client ───────────────────────────────────────────────────────────────
@@ -202,7 +197,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     } catch (_) {}
 
     if (res.status === 401) {
-      handleSessionExpired();
+      clearAuthSession();
     }
 
     throw new Error(errMsg);

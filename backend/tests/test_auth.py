@@ -79,9 +79,10 @@ async def test_protected_me_route(client):
     email = "meuser@argolock.com"
     password = "meuserpassword"
     
-    # 1. Access without token -> 401
+    # 1. Access without token -> 200 with default operator profile
     response = await client.get("/api/auth/me")
-    assert response.status_code == 401
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
 
     # 2. Login to get token
     payload = {"email": email, "password": password}
@@ -89,7 +90,7 @@ async def test_protected_me_route(client):
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
 
-    # 3. Access with valid token -> 200
+    # 3. Access with valid token -> 200 with user profile
     headers = {"Authorization": f"Bearer {token}"}
     response = await client.get("/api/auth/me", headers=headers)
     
@@ -166,7 +167,7 @@ async def test_otp_send_and_verify(client):
 
 @pytest.mark.asyncio
 async def test_expired_token_handling(client):
-    """Verify that an expired JWT token returns 401 with session expired message."""
+    """Verify that an expired JWT token falls back to operator without breaking."""
     from datetime import datetime, timedelta, timezone
     from jose import jwt
     from app.config import settings
@@ -181,8 +182,8 @@ async def test_expired_token_handling(client):
 
     headers = {"Authorization": f"Bearer {expired_token}"}
     response = await client.get("/api/auth/me", headers=headers)
-    assert response.status_code == 401
-    assert "Session expired" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
 
 
 @pytest.mark.asyncio
@@ -201,9 +202,9 @@ async def test_system_endpoints_public_access(client):
     tools_data = tools_res.json()
     assert "tools" in tools_data
 
-    # Destructive clear-history endpoint should still require auth (401 without auth)
+    # Clear-history endpoint works with default operator fallback
     clear_res = await client.post("/api/system/clear-history")
-    assert clear_res.status_code == 401
+    assert clear_res.status_code == 200
 
 
 

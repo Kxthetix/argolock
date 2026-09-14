@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { api, clearAuthSession, SystemAgent, SystemAgentsResponse } from '../lib/api';
+import { Link } from 'react-router-dom';
+import { api, SystemAgent, SystemAgentsResponse } from '../lib/api';
 import { Cpu, Brain, CheckCircle, XCircle, Key, FileCode, Sliders, ShieldAlert } from 'lucide-react';
 
 export function AgentsPage() {
@@ -42,41 +43,23 @@ export function AgentsPage() {
   }
 
   if (error) {
-    const isAuthError =
-      error.toLowerCase().includes('token') ||
-      error.toLowerCase().includes('authentication') ||
-      error.toLowerCase().includes('session') ||
-      error.toLowerCase().includes('401') ||
-      error.toLowerCase().includes('unauthorized');
-
     return (
       <div className="page-content animate-fadeIn">
         <div className="card" style={{ border: '1px solid var(--sev-critical)', padding: 40, textAlign: 'center', background: 'rgba(255,59,48,0.03)' }}>
           <ShieldAlert className="text-critical" style={{ width: 64, height: 64, marginBottom: 20, filter: 'drop-shadow(0 0 10px rgba(255,59,48,0.2))' }} />
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
-            {isAuthError ? 'Session Expired' : 'System Communication Error'}
+            System Communication Error
           </h2>
           <p className="text-secondary" style={{ marginBottom: 28, maxWidth: 500, margin: '0 auto 24px' }}>
-            {isAuthError
-              ? 'Your authentication session has expired or is invalid. Please sign in again to continue.'
-              : error}
+            {error}
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            {isAuthError ? (
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  clearAuthSession();
-                  window.location.href = '/login?expired=true&redirect=%2Fagents';
-                }}
-              >
-                Log In Again
-              </button>
-            ) : (
-              <button className="btn btn-outline" onClick={() => window.location.reload()}>
-                Retry Connection
-              </button>
-            )}
+            <button className="btn btn-outline" onClick={() => window.location.reload()}>
+              Retry Connection
+            </button>
+            <Link to="/dashboard" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+              Dashboard
+            </Link>
           </div>
         </div>
       </div>
