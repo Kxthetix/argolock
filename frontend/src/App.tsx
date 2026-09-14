@@ -10,6 +10,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { ToolStatusPage } from './pages/ToolStatusPage';
 import { VaptValidationCenter } from './pages/VaptValidationCenter';
+import { V17HubPage } from './pages/V17HubPage';
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
                   <Route path="/agents" element={<AgentsPage />} />
                   <Route path="/tool-status" element={<ToolStatusPage />} />
                   <Route path="/validation-center" element={<VaptValidationCenter />} />
+                  <Route path="/v17" element={<V17HubPage />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </main>

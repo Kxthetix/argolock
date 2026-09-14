@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, Scan, FileText, Activity, Shield, Cpu, ShieldCheck
+  LayoutDashboard, Scan, FileText, Activity, Shield, Cpu, ShieldCheck, Crosshair
 } from 'lucide-react';
 import { authApi, clearAuthSession, getStoredToken } from '../lib/api';
 
 const navItems: { to: string; label: string; icon: any; exact?: boolean }[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/scans', label: 'Scans', icon: Scan },
+  { to: '/v17', label: 'V1.7 Platform', icon: Crosshair },
   { to: '/validation-center', label: 'VAPT Center', icon: ShieldCheck },
   { to: '/findings', label: 'Findings', icon: Shield },
   { to: '/reports', label: 'Reports', icon: FileText },

@@ -10,7 +10,7 @@ from loguru import logger
 
 from app.config import settings
 from app.database import connect_db, disconnect_db
-from app.routers import health, scans, findings, reports, auth, system, vapt_router
+from app.routers import health, scans, findings, reports, auth, system, vapt_router, v1_7_router
 from app.services.websocket_manager import ws_manager
 
 
@@ -167,6 +167,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(system.router, prefix="/api/system", tags=["System"])
 app.include_router(vapt_router.router, prefix="/api/vapt", tags=["VAPT Validation"])
+app.include_router(v1_7_router.router)
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 from fastapi import WebSocket, WebSocketDisconnect

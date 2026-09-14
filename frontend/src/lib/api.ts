@@ -140,6 +140,133 @@ export interface SystemToolsResponse {
   tools: SystemTool[];
 }
 
+// ── V1.7 Interfaces ──────────────────────────────────────────────────────────
+
+export type MissionMode = 'DISCOVERY' | 'ASSESSMENT' | 'VALIDATION' | 'CONTINUOUS';
+
+export interface Mission {
+  id: string;
+  name: string;
+  target: string;
+  mode: MissionMode;
+  status: string;
+  current_phase: string;
+  progress_percent: number;
+  budget_seconds: number;
+  scope_whitelist: string[];
+  scope_blacklist: string[];
+  active_agent_count: number;
+  findings_count: number;
+  verified_count: number;
+  capabilities_count: number;
+  risk_score: number;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface AgentProfile {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  description: string;
+  tools: string[];
+  status: string;
+  capabilities: string[];
+  confidence_weight: number;
+}
+
+export interface CapabilityNode {
+  id: string;
+  name: string;
+  description: string;
+  target_asset: string;
+  finding_id?: string;
+  prerequisite_node_ids?: string[];
+  confidence: number;
+  terminal_impact: boolean;
+  evidence_hash?: string;
+  discovered_at: string;
+}
+
+export interface CapabilityEdge {
+  source_id: string;
+  target_id: string;
+  transition_vulnerability: string;
+  transition_confidence: number;
+  evidence_hash: string;
+}
+
+export interface AttackChain {
+  id: string;
+  scan_id: string;
+  title: string;
+  entry_point: string;
+  terminal_impact: string;
+  path_nodes: CapabilityNode[];
+  overall_confidence: number;
+  severity: string;
+  created_at: string;
+}
+
+export interface CapabilityGraph {
+  scan_id: string;
+  target: string;
+  total_nodes: number;
+  total_edges: number;
+  nodes: CapabilityNode[];
+  edges: CapabilityEdge[];
+  attack_chains: AttackChain[];
+  generated_at: string;
+}
+
+export interface CyberRiskQuantification {
+  scan_id: string;
+  score: number;
+  rating: string;
+  severity_factor: number;
+  exploitability_factor: number;
+  asset_criticality_factor: number;
+  exposure_factor: number;
+  business_impact_factor: number;
+  threat_relevance_factor: number;
+  confidence_factor: number;
+  calculation_breakdown: Record<string, any>;
+  calculated_at: string;
+}
+
+export interface RemediationAction {
+  id: string;
+  finding_id?: string;
+  title: string;
+  recommended_control: string;
+  estimated_cost: string;
+  cost_index: number;
+  risk_reduction_points: number;
+  residual_risk_points: number;
+  roi_score: number;
+  priority: 'P1' | 'P2' | 'P3' | 'P4';
+  effort_hours: number;
+  compliance_mappings: string[];
+}
+
+export interface InvestmentPlan {
+  scan_id: string;
+  initial_risk_score: number;
+  projected_residual_risk: number;
+  total_risk_reduction: number;
+  actions: RemediationAction[];
+  generated_at: string;
+}
+
+export interface ControlPlaneStatus {
+  global_kill_switch_active: boolean;
+  terminated_mission_count: number;
+  enforced_gates: string[];
+  destructive_pattern_count: number;
+  status: string;
+}
+
 // ── Auth Helpers ──────────────────────────────────────────────────────────────
 
 export function isTokenExpired(token: string | null): boolean {
@@ -322,6 +449,24 @@ export const api = {
     getMitreMappings: () => request<any[]>('/vapt/mitre-mappings'),
     getToolsHealth: () => request<any[]>('/vapt/tools/health'),
     getAuditTrail: (limit = 50) => request<any[]>(`/vapt/audit?limit=${limit}`),
+  },
+  v17: {
+    listMissions: () => request<Mission[]>('/v1/missions'),
+    createMission: (data: { name?: string; target: string; mode: MissionMode; budget_seconds?: number; scope_whitelist?: string[]; scope_blacklist?: string[] }) =>
+      request<Mission>('/v1/missions', { method: 'POST', body: JSON.stringify(data) }),
+    getMission: (id: string) => request<Mission>(`/v1/missions/${id}`),
+    listAgents: (category?: string) =>
+      request<{ total_agents: number; categories: string[]; agents: AgentProfile[] }>(`/v1/agents${category ? `?category=${category}` : ''}`),
+    getAgent: (codeOrId: string) => request<AgentProfile>(`/v1/agents/${codeOrId}`),
+    getCapabilityGraph: (scanId: string) => request<CapabilityGraph>(`/v1/capability-graph/${scanId}`),
+    getCyberRisk: (scanId: string, assetCriticality = 1.2, exposure = 1.3) =>
+      request<CyberRiskQuantification>(`/v1/risk/${scanId}?asset_criticality=${assetCriticality}&exposure=${exposure}`),
+    getInvestmentPlan: (scanId: string) => request<InvestmentPlan>(`/v1/investment/${scanId}`),
+    getControlPlaneStatus: () => request<ControlPlaneStatus>('/v1/security-control-plane/status'),
+    toggleKillSwitch: (activate: boolean, missionId?: string) =>
+      request<any>('/v1/security-control-plane/kill-switch', { method: 'POST', body: JSON.stringify({ activate, mission_id: missionId }) }),
+    adversarialValidate: (finding: any) =>
+      request<any>('/v1/adversarial-validate', { method: 'POST', body: JSON.stringify(finding) }),
   },
 };
 
