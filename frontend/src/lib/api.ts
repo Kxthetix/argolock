@@ -70,6 +70,8 @@ export interface Finding {
   affected_endpoint: string;
   affected_parameter?: string;
   tool_source: string;
+  confirmed?: boolean;
+  false_positive?: boolean;
   poc?: {
     request?: string;
     response?: string;
@@ -137,10 +139,50 @@ export interface SystemToolsResponse {
   tools: SystemTool[];
 }
 
+// ── Auth Helpers ──────────────────────────────────────────────────────────────
+
+export function isTokenExpired(token: string | null): boolean {
+  if (!token) return true;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return false;
+    // Check expiration with a 30-second clock skew buffer
+    return Date.now() >= (payload.exp * 1000) - 30000;
+  } catch {
+    return false;
+  }
+}
+
+export function getStoredToken(): string | null {
+  const token = localStorage.getItem('auth_token');
+  if (!token) return null;
+  if (isTokenExpired(token)) {
+    clearAuthSession();
+    return null;
+  }
+  return token;
+}
+
+export function clearAuthSession(): void {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('auth_email');
+}
+
+export function handleSessionExpired(): void {
+  clearAuthSession();
+  const pathname = window.location.pathname;
+  if (!pathname.startsWith('/login') && !pathname.startsWith('/auth/')) {
+    const currentPath = encodeURIComponent(pathname + window.location.search);
+    window.location.href = `/login?expired=true&redirect=${currentPath}`;
+  }
+}
+
 // ── HTTP Client ───────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('auth_token');
+  const token = getStoredToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string>),
@@ -158,6 +200,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       const body = await res.json();
       errMsg = body.detail ?? body.message ?? body.error ?? JSON.stringify(body);
     } catch (_) {}
+
+    if (res.status === 401) {
+      handleSessionExpired();
+    }
+
     throw new Error(errMsg);
   }
   return res.json();
@@ -273,6 +320,7 @@ export const api = {
     getExploitability: (findingId: string) => request<any>(`/vapt/findings/${findingId}/exploitability`),
     getRisk: (findingId: string) => request<any>(`/vapt/risk/${findingId}`),
     getEvidence: (findingId: string) => request<any>(`/vapt/findings/${findingId}/evidence`),
+    getRemediationPlan: (findingId: string) => request<any>(`/vapt/findings/${findingId}/remediation`),
     retestFinding: (findingId: string) => request<any>(`/vapt/findings/${findingId}/retest`, { method: 'POST' }),
     getAttackPaths: () => request<any>('/vapt/attack-paths'),
     getMitreMappings: () => request<any[]>('/vapt/mitre-mappings'),

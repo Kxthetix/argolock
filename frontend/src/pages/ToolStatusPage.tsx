@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, SystemTool, SystemToolsResponse } from '../lib/api';
+import { api, clearAuthSession, SystemTool, SystemToolsResponse } from '../lib/api';
 import { Activity, CheckCircle, AlertTriangle, XCircle, Terminal, Container, Shield, Info } from 'lucide-react';
 
 export function ToolStatusPage() {
@@ -70,15 +70,42 @@ export function ToolStatusPage() {
   }
 
   if (error) {
+    const isAuthError =
+      error.toLowerCase().includes('token') ||
+      error.toLowerCase().includes('authentication') ||
+      error.toLowerCase().includes('session') ||
+      error.toLowerCase().includes('401') ||
+      error.toLowerCase().includes('unauthorized');
+
     return (
       <div className="page-content animate-fadeIn">
         <div className="card" style={{ border: '1px solid var(--sev-critical)', padding: 40, textAlign: 'center', background: 'rgba(255,59,48,0.03)' }}>
           <XCircle className="text-critical" style={{ width: 64, height: 64, marginBottom: 20, filter: 'drop-shadow(0 0 10px rgba(255,59,48,0.2))' }} />
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>System Communication Error</h2>
-          <p className="text-secondary" style={{ marginBottom: 28, maxWidth: 500, margin: '0 auto 24px' }}>{error}</p>
-          <button className="btn btn-outline" onClick={() => window.location.reload()}>
-            Retry Connection
-          </button>
+          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
+            {isAuthError ? 'Session Expired' : 'System Communication Error'}
+          </h2>
+          <p className="text-secondary" style={{ marginBottom: 28, maxWidth: 500, margin: '0 auto 24px' }}>
+            {isAuthError
+              ? 'Your authentication session has expired or is invalid. Please sign in again to continue.'
+              : error}
+          </p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            {isAuthError ? (
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  clearAuthSession();
+                  window.location.href = '/login?expired=true&redirect=%2Ftool-status';
+                }}
+              >
+                Log In Again
+              </button>
+            ) : (
+              <button className="btn btn-outline" onClick={() => window.location.reload()}>
+                Retry Connection
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

@@ -8,7 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError, jwt
 from loguru import logger
 from pydantic import BaseModel, EmailStr, Field
 
@@ -48,8 +48,8 @@ class OTPVerifyRequest(BaseModel):
 
 
 def _create_jwt(email: str) -> str:
-    """Create a JWT access token that expires in 24 hours."""
-    token_expiry = datetime.now(timezone.utc) + timedelta(days=1)
+    """Create a JWT access token that expires in 7 days."""
+    token_expiry = datetime.now(timezone.utc) + timedelta(days=7)
     return jwt.encode(
         {"sub": email, "exp": token_expiry},
         settings.secret_key,
@@ -80,10 +80,16 @@ async def get_current_user(
                 detail="Invalid authentication token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail="Invalid authentication token. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

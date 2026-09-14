@@ -164,3 +164,46 @@ async def test_otp_send_and_verify(client):
     assert user["email_verified"] is True
 
 
+@pytest.mark.asyncio
+async def test_expired_token_handling(client):
+    """Verify that an expired JWT token returns 401 with session expired message."""
+    from datetime import datetime, timedelta, timezone
+    from jose import jwt
+    from app.config import settings
+
+    # Create an expired token (1 hour in the past)
+    expired_time = datetime.now(timezone.utc) - timedelta(hours=1)
+    expired_token = jwt.encode(
+        {"sub": "expired_test@argolock.com", "exp": expired_time},
+        settings.secret_key,
+        algorithm="HS256",
+    )
+
+    headers = {"Authorization": f"Bearer {expired_token}"}
+    response = await client.get("/api/auth/me", headers=headers)
+    assert response.status_code == 401
+    assert "Session expired" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_system_endpoints_public_access(client):
+    """Verify that /api/system/agents and /api/system/tools are accessible without auth."""
+    # Agents endpoint should return 200 without auth header
+    agents_res = await client.get("/api/system/agents")
+    assert agents_res.status_code == 200
+    agents_data = agents_res.json()
+    assert "agents" in agents_data
+    assert "active_provider" in agents_data
+
+    # Tools endpoint should return 200 without auth header
+    tools_res = await client.get("/api/system/tools")
+    assert tools_res.status_code == 200
+    tools_data = tools_res.json()
+    assert "tools" in tools_data
+
+    # Destructive clear-history endpoint should still require auth (401 without auth)
+    clear_res = await client.post("/api/system/clear-history")
+    assert clear_res.status_code == 401
+
+
+

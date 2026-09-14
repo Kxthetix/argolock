@@ -11,11 +11,13 @@ import { OAuthCallback } from './pages/OAuthCallback';
 import { AgentsPage } from './pages/AgentsPage';
 import { ToolStatusPage } from './pages/ToolStatusPage';
 import { VaptValidationCenter } from './pages/VaptValidationCenter';
+import { getStoredToken } from './lib/api';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const token = localStorage.getItem('auth_token');
+  const token = getStoredToken();
   if (!token) {
-    return <Navigate to="/login" replace />;
+    const currentPath = encodeURIComponent(window.location.pathname + window.location.search);
+    return <Navigate to={`/login?redirect=${currentPath}`} replace />;
   }
   return <>{children}</>;
 }

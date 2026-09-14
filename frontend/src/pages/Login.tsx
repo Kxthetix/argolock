@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { API_BASE, authApi } from '../lib/api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { API_BASE, authApi, getStoredToken } from '../lib/api';
 import { OTPModal } from '../components/OTPModal';
 
 export function Login() {
@@ -17,14 +17,20 @@ export function Login() {
   const [otpEmail, setOtpEmail] = useState('');
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTarget = searchParams.get('redirect') || '/';
+  const isSessionExpired = searchParams.get('expired') === 'true';
+  const [sessionNotice] = useState(
+    isSessionExpired ? 'Your session has expired. Please log in again to continue.' : ''
+  );
 
-  // Redirect to dashboard if already logged in
+  // Redirect to dashboard or return url if already logged in
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = getStoredToken();
     if (token) {
-      navigate('/');
+      navigate(redirectTarget.startsWith('/') ? redirectTarget : '/');
     }
-  }, [navigate]);
+  }, [navigate, redirectTarget]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +63,7 @@ export function Login() {
       // Bypass OTP: directly store auth token and login email, then redirect
       localStorage.setItem('auth_token', resp.access_token);
       localStorage.setItem('auth_email', resp.email);
-      window.location.href = '/';
+      window.location.href = redirectTarget.startsWith('/') ? redirectTarget : '/';
     } catch (err: any) {
       setError(err.message || 'Authentication failed. Please try again.');
     } finally {
@@ -69,7 +75,7 @@ export function Login() {
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_email', verifiedEmail);
     setIsOtpOpen(false);
-    window.location.href = '/';
+    window.location.href = redirectTarget.startsWith('/') ? redirectTarget : '/';
   };
 
   const handleResendOtp = async () => {
@@ -536,6 +542,24 @@ export function Login() {
                   onBlur={(e) => { e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)'; }}
                 />
               </div>
+
+              {sessionNotice && !error && (
+                <div style={{
+                  background: 'rgba(255, 149, 0, 0.1)',
+                  border: '1px solid rgba(255, 149, 0, 0.3)',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  color: '#ff9f0a',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  lineHeight: 1.4,
+                }}>
+                  <span>🔒</span>
+                  <span>{sessionNotice}</span>
+                </div>
+              )}
 
               {error && (
                 <div style={{

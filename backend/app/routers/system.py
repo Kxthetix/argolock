@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("/agents")
-async def get_agents_status(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_agents_status():
     """Retrieve configuration and status details for all AI agents."""
     openai_configured = bool(settings.openai_api_key)
     claude_configured = bool(settings.anthropic_api_key)
@@ -96,7 +96,7 @@ async def get_agents_status(current_user: Dict[str, Any] = Depends(get_current_u
 
 
 @router.get("/tools")
-async def get_tools_status(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def get_tools_status():
     """Retrieve installation status, execution mode, and capability metadata for security tools."""
     tools = [
         {

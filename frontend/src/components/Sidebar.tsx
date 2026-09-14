@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Scan, FileText, Activity, Shield, Cpu, ShieldCheck
 } from 'lucide-react';
-import { authApi } from '../lib/api';
+import { authApi, clearAuthSession, getStoredToken } from '../lib/api';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -18,23 +18,29 @@ export function Sidebar() {
 
   useEffect(() => {
     const fetchUser = async () => {
+      const token = getStoredToken();
+      if (!token) {
+        setUser(null);
+        return;
+      }
       try {
         const data = await authApi.me();
         setUser(data);
       } catch (err) {
         console.error('Failed to fetch user profile:', err);
+        setUser(null);
       }
     };
     fetchUser();
   }, []);
 
-  const email = user?.email || localStorage.getItem('auth_email') || 'User';
-  const displayName = user?.name || email.split('@')[0];
+  const token = getStoredToken();
+  const email = user?.email || (token ? localStorage.getItem('auth_email') : null) || 'Guest';
+  const displayName = user?.name || (email !== 'Guest' ? email.split('@')[0] : 'Guest');
   const avatarUrl = user?.avatar_url;
 
   const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_email');
+    clearAuthSession();
     window.location.href = '/login';
   };
 
