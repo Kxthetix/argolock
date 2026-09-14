@@ -111,6 +111,18 @@ async def lifespan(app: FastAPI):
             repaired_count += 1
         if repaired_count > 0:
             logger.info(f"✨ Auto-repaired {repaired_count} finding(s) with missing title or OWASP category.")
+
+        # ── Ensure info_count is set on all scans ─────────────────────────────
+        cursor = db["scans"].find({"info_count": {"$exists": False}})
+        missing_info_scans = await cursor.to_list(length=1000)
+        for s in missing_info_scans:
+            tot = s.get("finding_count", 0)
+            crit = s.get("critical_count", 0)
+            high = s.get("high_count", 0)
+            med = s.get("medium_count", 0)
+            low = s.get("low_count", 0)
+            info = max(0, tot - (crit + high + med + low))
+            await db["scans"].update_one({"id": s["id"]}, {"$set": {"info_count": info}})
     except Exception as e:
         logger.error(f"Failed to clean up interrupted scans or repair findings on startup: {e}")
     

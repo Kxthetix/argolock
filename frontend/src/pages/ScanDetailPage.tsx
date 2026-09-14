@@ -281,7 +281,13 @@ export function ScanDetailPage() {
 
       {/* Progress Card */}
       <div className="card mb-6">
-        <ScanProgress scan={scan} />
+        <ScanProgress 
+          scan={scan} 
+          onFilterSelect={(sev) => {
+            setActiveTab('findings');
+            setSeverityFilter(sev);
+          }} 
+        />
         {scan.error && (
           <div style={{
             marginTop: 16, padding: 12, background: 'var(--sev-critical-bg)',
@@ -427,8 +433,8 @@ export function ScanDetailPage() {
             {tab === 'findings' && <Shield size={14} />}
             {tab === 'logs' && <Terminal size={14} />}
             {tab}
-            {tab === 'findings' && findings.length > 0 && (
-              <span className="badge badge-critical" style={{ marginLeft: 4 }}>{findings.length}</span>
+            {tab === 'findings' && scan.finding_count > 0 && (
+              <span className="badge badge-critical" style={{ marginLeft: 4 }}>{scan.finding_count}</span>
             )}
           </button>
         ))}
@@ -438,22 +444,76 @@ export function ScanDetailPage() {
       {activeTab === 'findings' && (
         <div>
           {/* Severity filter */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            {['', 'critical', 'high', 'medium', 'low', 'info'].map(sev => (
-              <button
-                key={sev}
-                onClick={() => setSeverityFilter(sev)}
-                className={`badge ${sev ? `badge-${sev}` : 'badge-blue'}`}
-                style={{
-                  cursor: 'pointer', border: 'none',
-                  padding: '6px 14px', fontSize: 12,
-                  opacity: severityFilter === sev ? 1 : 0.5,
-                }}
-              >
-                {sev || 'All'}
-              </button>
-            ))}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            {['', 'critical', 'high', 'medium', 'low', 'info'].map(sev => {
+              const count = !sev 
+                ? scan.finding_count 
+                : sev === 'critical' ? scan.critical_count
+                : sev === 'high' ? scan.high_count
+                : sev === 'medium' ? scan.medium_count
+                : sev === 'low' ? scan.low_count
+                : (scan.info_count ?? Math.max(0, scan.finding_count - (scan.critical_count + scan.high_count + scan.medium_count + scan.low_count)));
+              const isActive = severityFilter === sev;
+              return (
+                <button
+                  key={sev}
+                  onClick={() => setSeverityFilter(sev)}
+                  className={`badge ${sev ? `badge-${sev}` : 'badge-blue'}`}
+                  style={{
+                    cursor: 'pointer',
+                    border: isActive ? '1px solid currentColor' : '1px solid transparent',
+                    padding: '6px 12px', fontSize: 12,
+                    opacity: isActive ? 1 : 0.6,
+                    fontWeight: isActive ? 700 : 500,
+                    boxShadow: isActive ? '0 0 10px rgba(255,255,255,0.1)' : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span style={{ textTransform: 'capitalize' }}>{sev || 'All'}</span>
+                  <span style={{
+                    fontSize: 10,
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    padding: '1px 6px',
+                    borderRadius: 10,
+                    fontWeight: 700,
+                  }}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+
+          {severityFilter && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 14px',
+              marginBottom: 16,
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              flexWrap: 'wrap',
+              gap: 8,
+            }}>
+              <span>
+                Showing <strong style={{ color: 'var(--text-primary)' }}>{findings.length}</strong> of {scan.finding_count} findings filtered by <strong style={{ textTransform: 'capitalize', color: 'var(--primary-light)' }}>{severityFilter}</strong>
+              </span>
+              <button
+                onClick={() => setSeverityFilter('')}
+                className="btn btn-outline btn-sm"
+                style={{ fontSize: 11, padding: '2px 8px', height: 'auto' }}
+              >
+                Clear Filter (Show All {scan.finding_count})
+              </button>
+            </div>
+          )}
+
           <FindingsTable findings={findings} />
         </div>
       )}

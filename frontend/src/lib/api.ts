@@ -45,6 +45,7 @@ export interface Scan {
   high_count: number;
   medium_count: number;
   low_count: number;
+  info_count?: number;
   tool_results?: Record<string, any>;
   exploitation_stages?: Record<string, ExploitationStage>;
   error?: string;

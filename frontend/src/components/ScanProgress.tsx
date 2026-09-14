@@ -3,6 +3,7 @@ import { Scan } from '../lib/api';
 
 interface Props {
   scan: Scan;
+  onFilterSelect?: (severity: string) => void;
 }
 
 const PHASES = [
@@ -17,8 +18,9 @@ const PHASES = [
 
 const PHASE_ORDER = PHASES.map(p => p.key);
 
-export function ScanProgress({ scan }: Props) {
+export function ScanProgress({ scan, onFilterSelect }: Props) {
   const currentIndex = PHASE_ORDER.indexOf(scan.status);
+  const infoCount = scan.info_count ?? Math.max(0, scan.finding_count - (scan.critical_count + scan.high_count + scan.medium_count + scan.low_count));
 
   return (
     <div>
@@ -81,21 +83,35 @@ export function ScanProgress({ scan }: Props) {
           display: 'flex', gap: 16, marginTop: 16,
           padding: '12px 16px', background: 'var(--bg-elevated)',
           borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+          flexWrap: 'wrap',
         }}>
-          <FindCount label="Total" value={scan.finding_count} color="var(--text-primary)" />
-          <FindCount label="Critical" value={scan.critical_count} color="var(--sev-critical)" />
-          <FindCount label="High" value={scan.high_count} color="var(--sev-high)" />
-          <FindCount label="Medium" value={scan.medium_count} color="var(--sev-medium)" />
-          <FindCount label="Low" value={scan.low_count} color="var(--sev-low)" />
+          <FindCount label="Total" value={scan.finding_count} color="var(--text-primary)" onClick={onFilterSelect ? () => onFilterSelect('') : undefined} />
+          <FindCount label="Critical" value={scan.critical_count} color="var(--sev-critical)" onClick={onFilterSelect ? () => onFilterSelect('critical') : undefined} />
+          <FindCount label="High" value={scan.high_count} color="var(--sev-high)" onClick={onFilterSelect ? () => onFilterSelect('high') : undefined} />
+          <FindCount label="Medium" value={scan.medium_count} color="var(--sev-medium)" onClick={onFilterSelect ? () => onFilterSelect('medium') : undefined} />
+          <FindCount label="Low" value={scan.low_count} color="var(--sev-low)" onClick={onFilterSelect ? () => onFilterSelect('low') : undefined} />
+          <FindCount label="Info" value={infoCount} color="var(--sev-info)" onClick={onFilterSelect ? () => onFilterSelect('info') : undefined} />
         </div>
       )}
     </div>
   );
 }
 
-function FindCount({ label, value, color }: { label: string; value: number; color: string }) {
+function FindCount({ label, value, color, onClick }: { label: string; value: number; color: string; onClick?: () => void }) {
   return (
-    <div style={{ textAlign: 'center' }}>
+    <div 
+      onClick={onClick}
+      style={{ 
+        textAlign: 'center', 
+        minWidth: 48,
+        cursor: onClick ? 'pointer' : 'default',
+        padding: '2px 6px',
+        borderRadius: 6,
+        transition: 'background 0.15s ease, transform 0.15s ease',
+      }}
+      title={onClick ? `View ${label} findings` : undefined}
+      className={onClick ? 'hover:bg-white/5' : ''}
+    >
       <div style={{ fontSize: 18, fontWeight: 800, color }}>{value}</div>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
         {label}

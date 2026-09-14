@@ -133,6 +133,7 @@ class ScanDocument(BaseModel):
     high_count: int = 0
     medium_count: int = 0
     low_count: int = 0
+    info_count: int = 0
     error: Optional[str] = None
     exploitation_stages: Dict[str, ExploitationStageInfo] = Field(default_factory=default_exploitation_stages)
 

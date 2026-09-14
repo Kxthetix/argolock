@@ -104,7 +104,7 @@ async def get_scan_findings(
 
     query: Dict[str, Any] = {"scan_id": scan_id}
     if severity:
-        query["severity"] = severity.lower()
+        query["severity"] = {"$regex": f"^{severity.strip()}$", "$options": "i"}
 
     cursor = db["findings"].find(query, {"_id": 0}).sort("cvss_score", -1).skip(skip).limit(limit)
     findings = await cursor.to_list(length=limit)

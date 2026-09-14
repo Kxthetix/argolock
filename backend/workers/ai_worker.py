@@ -95,7 +95,8 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             # Update counts on scan
             counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
             for f in finding_dicts:
-                sev = f.get("severity", "info").lower()
+                sev = str(f.get("severity", "info")).lower()
+                f["severity"] = sev
                 counts[sev] = counts.get(sev, 0) + 1
 
             db["scans"].update_one(
@@ -106,6 +107,7 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
                     "high_count": counts["high"],
                     "medium_count": counts["medium"],
                     "low_count": counts["low"],
+                    "info_count": counts["info"],
                 }}
             )
 

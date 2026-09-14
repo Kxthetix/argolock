@@ -17,7 +17,7 @@ async def list_findings(
     db = get_db()
     query = {}
     if severity:
-        query["severity"] = severity.lower()
+        query["severity"] = {"$regex": f"^{severity.strip()}$", "$options": "i"}
     if owasp_category:
         query["owasp_category"] = owasp_category
 
