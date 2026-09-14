@@ -10,6 +10,7 @@ import { Login } from './pages/Login';
 import { OAuthCallback } from './pages/OAuthCallback';
 import { AgentsPage } from './pages/AgentsPage';
 import { ToolStatusPage } from './pages/ToolStatusPage';
+import { VaptValidationCenter } from './pages/VaptValidationCenter';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('auth_token');
@@ -44,6 +45,7 @@ export default function App() {
                       <Route path="/reports" element={<ReportsPage />} />
                       <Route path="/agents" element={<AgentsPage />} />
                       <Route path="/tool-status" element={<ToolStatusPage />} />
+                      <Route path="/validation-center" element={<VaptValidationCenter />} />
                     </Routes>
                   </main>
                 </div>

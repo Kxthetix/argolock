@@ -79,6 +79,15 @@ class Finding(BaseModel):
     cve_ids: List[str] = Field(default_factory=list)
     confirmed: bool = False
     false_positive: bool = False
+    validation_status: str = "detected"
+    validation_confidence: float = 0.0
+    asset_id: Optional[str] = None
+    cwe_ids: List[str] = Field(default_factory=list)
+    mitre_techniques: List[str] = Field(default_factory=list)
+    evidence_id: Optional[str] = None
+    exploitability_level: Optional[str] = None
+    contextual_risk_score: Optional[float] = None
+    retest_status: Optional[str] = None
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = ConfigDict(use_enum_values=True)

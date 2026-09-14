@@ -254,6 +254,31 @@ export const api = {
     tools: () => request<SystemToolsResponse>('/system/tools'),
     clearHistory: () => request<{ status: string; message: string; purged_counts: Record<string, number> }>('/system/clear-history', { method: 'POST' }),
   },
+  vapt: {
+    getAuthorizations: () => request<any[]>('/vapt/authorizations'),
+    createAuthorization: (data: any) =>
+      request<any>('/vapt/authorizations', { method: 'POST', body: JSON.stringify(data) }),
+    getApprovals: (status?: string) =>
+      request<any[]>(`/vapt/approvals${status ? `?status=${status}` : ''}`),
+    requestApproval: (data: any) =>
+      request<any>('/vapt/approvals', { method: 'POST', body: JSON.stringify(data) }),
+    approve: (id: string, notes?: string) =>
+      request<any>(`/vapt/approvals/${id}/approve`, { method: 'POST', body: JSON.stringify({ decision_notes: notes }) }),
+    reject: (id: string, notes?: string) =>
+      request<any>(`/vapt/approvals/${id}/reject`, { method: 'POST', body: JSON.stringify({ decision_notes: notes }) }),
+    validateFinding: (findingId: string, testingLevel = 'level_1', approvalId?: string) =>
+      request<any>(`/vapt/findings/${findingId}/validate?testing_level=${testingLevel}${approvalId ? `&approval_id=${approvalId}` : ''}`, {
+        method: 'POST',
+      }),
+    getExploitability: (findingId: string) => request<any>(`/vapt/findings/${findingId}/exploitability`),
+    getRisk: (findingId: string) => request<any>(`/vapt/risk/${findingId}`),
+    getEvidence: (findingId: string) => request<any>(`/vapt/findings/${findingId}/evidence`),
+    retestFinding: (findingId: string) => request<any>(`/vapt/findings/${findingId}/retest`, { method: 'POST' }),
+    getAttackPaths: () => request<any>('/vapt/attack-paths'),
+    getMitreMappings: () => request<any[]>('/vapt/mitre-mappings'),
+    getToolsHealth: () => request<any[]>('/vapt/tools/health'),
+    getAuditTrail: (limit = 50) => request<any[]>(`/vapt/audit?limit=${limit}`),
+  },
 };
 
 // ── Date Utility ─────────────────────────────────────────────────────────────

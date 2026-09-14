@@ -20,6 +20,14 @@ async def connect_db() -> None:
     await _db["findings"].create_index([("scan_id", 1), ("severity", -1)])
     await _db["reports"].create_index("scan_id", unique=True)
     await _db["users"].create_index("email", unique=True)
+    await _db["target_authorizations"].create_index("asset_id", unique=True)
+    await _db["target_authorizations"].create_index("hostname_or_ip")
+    await _db["testing_approvals"].create_index("id", unique=True)
+    await _db["testing_approvals"].create_index("finding_id")
+    await _db["evidence_records"].create_index("id", unique=True)
+    await _db["evidence_records"].create_index("finding_id")
+    await _db["vapt_audit_logs"].create_index("id", unique=True)
+    await _db["vapt_audit_logs"].create_index("asset_id")
     logger.info("✅ MongoDB connected and indexes created")
 
 
