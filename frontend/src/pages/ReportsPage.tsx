@@ -73,9 +73,9 @@ export function ReportsPage() {
             const scan = scans.find(s => s.id === report.scan_id);
             return (
               <div key={report.id} className="card">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <div style={{ fontSize: 17, fontWeight: 700 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
                       {scan?.scope?.target || report.scan_id}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -85,7 +85,7 @@ export function ReportsPage() {
                     </div>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{
                       fontSize: 28, fontWeight: 900,
                       color: riskColor(report.risk_rating),

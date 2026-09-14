@@ -34,21 +34,19 @@ export default function App() {
           element={
             <AuthGuard>
               <div className="app-layout">
-                <div style={{ display: 'flex', flex: 1 }}>
-                  <Sidebar />
-                  <main className="main-content">
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/scans" element={<ScansPage />} />
-                      <Route path="/scans/:id" element={<ScanDetailPage />} />
-                      <Route path="/findings" element={<FindingsPage />} />
-                      <Route path="/reports" element={<ReportsPage />} />
-                      <Route path="/agents" element={<AgentsPage />} />
-                      <Route path="/tool-status" element={<ToolStatusPage />} />
-                      <Route path="/validation-center" element={<VaptValidationCenter />} />
-                    </Routes>
-                  </main>
-                </div>
+                <Sidebar />
+                <main className="main-content">
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/scans" element={<ScansPage />} />
+                    <Route path="/scans/:id" element={<ScanDetailPage />} />
+                    <Route path="/findings" element={<FindingsPage />} />
+                    <Route path="/reports" element={<ReportsPage />} />
+                    <Route path="/agents" element={<AgentsPage />} />
+                    <Route path="/tool-status" element={<ToolStatusPage />} />
+                    <Route path="/validation-center" element={<VaptValidationCenter />} />
+                  </Routes>
+                </main>
               </div>
             </AuthGuard>
           }

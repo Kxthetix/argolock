@@ -62,12 +62,12 @@ export function Dashboard() {
   return (
     <div className="page-content animate-fadeIn">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6" style={{ flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 800 }}>Security Dashboard</h1>
           <p className="text-secondary mt-1">ArgoLock AI-powered vulnerability assessment overview</p>
         </div>
-        <Link to="/scans" className="btn btn-primary">
+        <Link to="/scans" className="btn btn-primary" style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>
           <Plus size={16} />
           New Scan
         </Link>
@@ -222,9 +222,9 @@ export function Dashboard() {
                 ))
                 : recentScans.map(scan => (
                   <tr key={scan.id}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{scan.scope?.target}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    <td style={{ maxWidth: 300 }}>
+                      <div style={{ fontWeight: 600, wordBreak: 'break-all', color: 'var(--text-primary)' }}>{scan.scope?.target}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-all' }}>
                         {scan.name !== `Scan of ${scan.scope?.target}` ? scan.name : ''}
                       </div>
                     </td>

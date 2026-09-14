@@ -246,13 +246,13 @@ export function ScanDetailPage() {
   return (
     <div className="page-content animate-fadeIn">
       {/* Back + Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/scans" className="btn btn-outline btn-sm">
+      <div className="flex items-center gap-3 mb-6" style={{ flexWrap: 'wrap' }}>
+        <Link to="/scans" className="btn btn-outline btn-sm" style={{ flexShrink: 0 }}>
           <ArrowLeft size={14} /> Back
         </Link>
-        <div style={{ flex: 1 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800 }}>{scan.scope?.target}</h1>
-          <p className="text-secondary" style={{ fontSize: 12, marginTop: 2 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, wordBreak: 'break-all', overflowWrap: 'anywhere' }}>{scan.scope?.target}</h1>
+          <p className="text-secondary" style={{ fontSize: 12, marginTop: 2, wordBreak: 'break-all' }}>
             {scan.name && scan.name !== `Scan of ${scan.scope?.target}` ? `${scan.name} · ` : ''}
             Created {scan.created_at ? formatDistanceToNow(parseUtcDate(scan.created_at), { addSuffix: true }) : '—'}
           </p>

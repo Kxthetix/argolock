@@ -41,7 +41,7 @@ export function ScansPage() {
   return (
     <div className="page-content animate-fadeIn">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6" style={{ flexWrap: 'wrap', gap: 16 }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 800 }}>Scans</h1>
           <p className="text-secondary mt-1">Manage and monitor your security assessments</p>
@@ -49,6 +49,7 @@ export function ScansPage() {
         <button
           id="new-scan-btn"
           className="btn btn-primary"
+          style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
           onClick={() => setShowForm(true)}
         >
           <Plus size={16} />
@@ -89,22 +90,38 @@ export function ScansPage() {
               <Link
                 key={scan.id}
                 to={`/scans/${scan.id}`}
-                style={{ textDecoration: 'none' }}
+                style={{ textDecoration: 'none', color: 'inherit' }}
               >
                 <div className="card" style={{ transition: 'all 0.2s', cursor: 'pointer' }}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 700 }}>{scan.scope?.target}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 16 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: 'var(--text-primary)',
+                        wordBreak: 'break-all',
+                        overflowWrap: 'anywhere',
+                        lineHeight: 1.4,
+                      }}>
+                        {scan.scope?.target}
+                      </div>
                       {scan.name && scan.name !== `Scan of ${scan.scope?.target}` && (
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{scan.name}</div>
+                        <div style={{
+                          fontSize: 12,
+                          color: 'var(--text-muted)',
+                          marginTop: 4,
+                          wordBreak: 'break-all',
+                        }}>
+                          {scan.name}
+                        </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         {scan.critical_count > 0 && <span className="badge badge-critical">{scan.critical_count} Critical</span>}
                         {scan.high_count > 0 && <span className="badge badge-high">{scan.high_count} High</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                         {scan.created_at ? formatDistanceToNow(parseUtcDate(scan.created_at), { addSuffix: true }) : ''}
                       </div>
                     </div>
