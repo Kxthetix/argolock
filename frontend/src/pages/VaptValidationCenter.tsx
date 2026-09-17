@@ -200,7 +200,7 @@ export function VaptValidationCenter() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <ShieldCheck style={{ width: 28, height: 28, color: 'var(--accent-cyan)' }} />
             <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.5px' }}>
-              ARGOLOCK NET v1.6 VAPT Validation & Security Testing Orchestrator
+              ARGOLOCK NET VAPT Validation & Security Testing Orchestrator
             </h1>
           </div>
           <p style={{ color: 'var(--text-secondary)', marginTop: 6, fontSize: 13 }}>

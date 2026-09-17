@@ -36,7 +36,8 @@ export default function App() {
                   <Route path="/agents" element={<AgentsPage />} />
                   <Route path="/tool-status" element={<ToolStatusPage />} />
                   <Route path="/validation-center" element={<VaptValidationCenter />} />
-                  <Route path="/v17" element={<V17HubPage />} />
+                  <Route path="/platform" element={<V17HubPage />} />
+                  <Route path="/v17" element={<Navigate to="/platform" replace />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </main>

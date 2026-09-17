@@ -144,10 +144,10 @@ export function V17HubPage() {
               <Shield size={18} color="#fff" />
             </div>
             <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: -0.5, margin: 0 }}>
-              ARGOLOCK <span style={{ color: 'var(--accent-cyan)' }}>V1.7</span>
+              ARGOLOCK <span style={{ color: 'var(--accent-cyan)' }}>PLATFORM</span>
             </h1>
             <span className="badge badge-info" style={{ fontSize: 10, padding: '2px 8px', letterSpacing: 0.5 }}>
-              ENTERPRISE PLATFORM
+              ENTERPRISE
             </span>
           </div>
           <p className="text-secondary" style={{ fontSize: 13, marginTop: 4 }}>
@@ -674,7 +674,7 @@ export function V17HubPage() {
         }}>
           <div className="card" style={{ maxWidth: 520, width: '100%', border: '1px solid var(--border-bright)' }}>
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="card-title">Launch V1.7 VAPT Mission</div>
+              <div className="card-title">Launch VAPT Mission</div>
               <button onClick={() => setShowLaunchModal(false)} className="btn btn-outline btn-sm">✕</button>
             </div>
 

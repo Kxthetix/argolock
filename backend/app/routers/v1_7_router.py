@@ -52,7 +52,7 @@ async def create_mission(req: CreateMissionRequest):
     if not gate_res.allowed:
         raise HTTPException(status_code=400, detail=f"Scope Gate violation: {gate_res.reason}")
 
-    mission_name = req.name or f"V1.7 {req.mode.value} Mission: {req.target}"
+    mission_name = req.name or f"{req.mode.value} Mission: {req.target}"
     mission = Mission(
         name=mission_name,
         target=req.target,
@@ -93,7 +93,7 @@ async def get_mission(mission_id: str):
 
 @router.get("/agents")
 async def list_agents(category: Optional[str] = Query(None, description="Filter by category")):
-    """List logical specialist agents across the 9 V1.7 groups."""
+    """List logical specialist agents across the 9 operational groups."""
     agents = AgentRegistry.list_agents(category)
     return {
         "total_agents": AgentRegistry.total_count(),
