@@ -16,7 +16,7 @@ async def list_findings(
 ):
     db = get_db()
     query = {}
-    if severity:
+    if severity and severity.strip().lower() not in ("undefined", "null", "all", ""):
         query["severity"] = {"$regex": f"^{severity.strip()}$", "$options": "i"}
     if owasp_category:
         query["owasp_category"] = owasp_category

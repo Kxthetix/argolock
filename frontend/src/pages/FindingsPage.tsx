@@ -8,14 +8,23 @@ export function FindingsPage() {
   const [loading, setLoading] = useState(true);
   const [severityFilter, setSeverityFilter] = useState('');
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const res = await api.findings.list({ severity: severityFilter || undefined, limit: 200 });
-        setFindings(res.findings);
-      } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+        const res = await api.findings.list(
+          severityFilter ? { severity: severityFilter, limit: 200 } : { limit: 200 }
+        );
+        setFindings(res.findings || []);
+      } catch (e: any) {
+        console.error(e);
+        setError(e.message || 'Failed to load findings');
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, [severityFilter]);
