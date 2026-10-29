@@ -33,19 +33,23 @@ Live Backend API Docs: **https://argolock.onrender.com/api/docs**
 argolock/
 ├── frontend/          # React + TypeScript + Vite (deployed on Vercel)
 │   ├── src/
-│   │   ├── pages/     # Dashboard, Scans, Findings, Reports
+│   │   ├── pages/     # Dashboard, Scans, Findings, Reports, V1.7 Hub
 │   │   ├── components/# Sidebar, ScanForm, FindingsTable, etc.
 │   │   └── lib/       # API client (with demo mode), mock data
 │   └── vercel.json    # Vercel deployment config
 │
 ├── backend/           # FastAPI + Python
-│   ├── app/           # API routers, models, services
-│   ├── agents/        # AI agents (recon, scanner, remediation, report)
-│   ├── workers/       # Celery task workers
-│   ├── tools/         # Tool wrappers (nmap, nuclei, etc.)
+│   ├── app/           # API routers, models, services (Control plane, scope gate)
+│   ├── agents/        # AI agents (vulnerability, risk scoring, remediation, report, shannon)
+│   ├── ai_providers/  # Multi-LLM provider abstraction (OpenAI, Claude, Ollama)
+│   ├── prompts/       # AI agent instruction prompts
+│   ├── reports/       # Report generation engine & HTML templates
+│   ├── tools/         # Tool wrappers & resilient Python fallbacks (nmap, naabu, etc.)
+│   ├── workers/       # Distributed Celery task workers (recon, scanner, exploit, ai)
+│   ├── tests/         # Unit, integration, and E2E test suite
 │   └── requirements.txt
 │
-└── docker-compose.yml # Full stack: MongoDB, Redis, Backend, Workers, ZAP
+└── docker-compose.yml # Full stack: MongoDB, Redis, Backend, Celery Workers, ZAP
 ```
 
 ---
@@ -83,16 +87,23 @@ uvicorn app.main:app --reload --port 8000
 ```powershell
 # Terminal 2 - Recon worker
 cd backend; venv\Scripts\activate
-celery -A workers.celery_app worker -Q recon -n recon@%h --loglevel=info -P solo
+celery -A workers.celery_app worker -Q recon,default -n recon@%h --loglevel=info -P solo
 
 # Terminal 3 - Scanner worker  
 cd backend; venv\Scripts\activate
 celery -A workers.celery_app worker -Q scanner -n scanner@%h --loglevel=info -P solo
 
-# Terminal 4 - AI worker
+# Terminal 4 - Exploit worker
+cd backend; venv\Scripts\activate
+celery -A workers.celery_app worker -Q exploit -n exploit@%h --loglevel=info -P solo
+
+# Terminal 5 - AI worker
 cd backend; venv\Scripts\activate
 celery -A workers.celery_app worker -Q ai -n ai@%h --loglevel=info -P solo
 ```
+
+> **Tip:** You can combine the Exploit and AI queues into a single worker:
+> `celery -A workers.celery_app worker -Q ai,exploit -n ai_exploit@%h --loglevel=info -P solo`
 
 ### 3. Frontend
 
