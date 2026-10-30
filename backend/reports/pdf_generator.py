@@ -12,6 +12,8 @@ from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 
 from app.config import settings
+from app.models.finding import DataSource, transition_finding_state
+from app.models.v1_7_models import FindingLifecycleState, MappedLifecycleStatus, map_finding_lifecycle_status
 
 PLACEHOLDER_TITLE_PATTERNS = [
     r"^\[verified\]\s*security\s*issue",
@@ -46,13 +48,18 @@ def is_403_or_blocked(f: Dict[str, Any]) -> bool:
     return False
 
 
-def validate_and_filter_findings(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def validate_and_filter_findings(
+    findings: List[Dict[str, Any]],
+    require_validation_record: bool = False,
+) -> List[Dict[str, Any]]:
     """
     Filter and validate findings for report generation:
     - Rejects findings without a specific title, evidence reference and method.
     - Removes placeholder titles like '[Verified] Security Issue'.
     - Removes boilerplate root causes.
-    - Records 403/blocked responses as inconclusive, not exposed.
+    - Excludes HYPOTHESIS findings.
+    - Excludes False Positive (KILLED) and Inconclusive (BLOCKED/403) findings.
+    - Enforces Phase 4 Gate: No finding reaches REPORTED without evidence and a validation record.
     """
     validated = []
     for f in findings:
@@ -74,21 +81,68 @@ def validate_and_filter_findings(findings: List[Dict[str, Any]]) -> List[Dict[st
             logger.info(f"Report generator rejected finding '{title}' lacking evidence reference")
             continue
 
-        # 4. Handle 403/blocked responses: record as inconclusive, not exposed
-        if is_403_or_blocked(f):
+        # 4. Reject HYPOTHESIS findings
+        data_source = str(f.get("data_source") or "").upper()
+        if data_source == DataSource.HYPOTHESIS.value or data_source == "HYPOTHESIS":
+            logger.info(f"Report generator rejected hypothetical finding '{title}' (DataSource.HYPOTHESIS is never reported)")
+            continue
+
+        # 5. Handle False Positive findings
+        is_fp = (
+            f.get("false_positive") is True
+            or str(f.get("lifecycle_status", "")).lower() == "false positive"
+            or str(f.get("lifecycle_state", "")).upper() == FindingLifecycleState.KILLED.value
+        )
+        if is_fp:
+            logger.info(f"Report generator excluded false positive finding '{title}'")
+            continue
+
+        # 6. Handle 403 / blocked / inconclusive responses
+        is_blocked = (
+            is_403_or_blocked(f)
+            or str(f.get("validation_status", "")).lower() == "inconclusive"
+            or str(f.get("lifecycle_status", "")).lower() == "inconclusive"
+            or str(f.get("lifecycle_state", "")).upper() == FindingLifecycleState.BLOCKED.value
+        )
+        if is_blocked:
             f["validation_status"] = "inconclusive"
             f["status"] = "inconclusive"
             f["is_exposed"] = False
             f["exposure_status"] = "inconclusive"
+            f["lifecycle_state"] = FindingLifecycleState.BLOCKED.value
+            f["lifecycle_status"] = MappedLifecycleStatus.INCONCLUSIVE.value
             logger.info(f"Recorded finding '{title}' at {evidence} as inconclusive (blocked/403) — excluded from exposed findings")
             continue
 
-        # 5. Clean boilerplate root causes
+        # 7. Phase 4 Gate: No finding reaches REPORTED without evidence and a validation record
+        has_evidence_record = bool(f.get("evidence_id") or f.get("evidence_hash"))
+        has_validation_record = bool(f.get("validation_record"))
+        current_state = str(f.get("lifecycle_state") or "").upper()
+
+        if require_validation_record or current_state == FindingLifecycleState.REPORTED.value:
+            if not has_evidence_record or not has_validation_record:
+                logger.warning(
+                    f"Report generator gate rejected finding '{title}' from reaching REPORTED: "
+                    f"has_evidence={has_evidence_record}, has_validation={has_validation_record}"
+                )
+                continue
+
+        # 8. Clean boilerplate root causes
         rem = f.get("remediation")
         if isinstance(rem, dict):
             rc = rem.get("root_cause")
             if rc and "The service or configuration lacks security controls or headers, allowing potential abuse" in rc:
                 rem["root_cause"] = None
+
+        # 9. If finding has evidence and validation record, transition to REPORTED
+        if has_evidence_record and has_validation_record:
+            transition_finding_state(
+                f,
+                to_state=FindingLifecycleState.REPORTED.value,
+                actor="report_generator",
+                rationale="Deterministic replay and validation record confirmed; integrated into published security report",
+                evidence_hash=f.get("evidence_hash"),
+            )
 
         validated.append(f)
 

@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 import uuid
 
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from pydantic import BaseModel, Field, ConfigDict, field_serializer, model_validator
 
 
 def utc_now() -> datetime:
@@ -136,12 +136,24 @@ class TestingApproval(BaseModel):
 # ── Tamper-Evident Evidence Record ───────────────────────────────────────────
 
 class EvidenceRecord(BaseModel):
-    """Technical proof record with SHA-256 cryptographic verification."""
+    """Immutable technical proof record with SHA-256 cryptographic verification."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    finding_id: str
-    asset_id: str
-    tool_source: str
-    technique: str
+    assessment_id: str = ""
+    asset: str = ""
+    tool: str = ""
+    tool_version: Optional[str] = None
+    request_excerpt: Optional[str] = None
+    response_excerpt: Optional[str] = None
+    timestamp: datetime = Field(default_factory=utc_now)
+    method: Optional[str] = None
+    hash: str = ""
+    redaction_flag: bool = False
+
+    # Backward-compatible fields
+    finding_id: Optional[str] = None
+    asset_id: Optional[str] = None
+    tool_source: Optional[str] = None
+    technique: Optional[str] = None
     request_sample: Optional[str] = None
     response_sample: Optional[str] = None
     banner_output: Optional[str] = None
@@ -149,11 +161,70 @@ class EvidenceRecord(BaseModel):
     stdout_summary: Optional[str] = None
     sha256_hash: str = ""
     redacted_fields: List[str] = Field(default_factory=list)
-    collected_at: datetime = Field(default_factory=utc_now)
+    collected_at: Optional[datetime] = None
 
     model_config = ConfigDict(use_enum_values=True)
 
-    @field_serializer("collected_at")
+    @model_validator(mode="before")
+    @classmethod
+    def sync_compat_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # assessment_id <-> finding_id
+            if not data.get("assessment_id") and data.get("finding_id"):
+                data["assessment_id"] = str(data["finding_id"])
+            elif not data.get("finding_id") and data.get("assessment_id"):
+                data["finding_id"] = str(data["assessment_id"])
+
+            # asset <-> asset_id
+            if not data.get("asset") and data.get("asset_id"):
+                data["asset"] = str(data["asset_id"])
+            elif not data.get("asset_id") and data.get("asset"):
+                data["asset_id"] = str(data["asset"])
+
+            # tool <-> tool_source
+            if not data.get("tool") and data.get("tool_source"):
+                data["tool"] = str(data["tool_source"])
+            elif not data.get("tool_source") and data.get("tool"):
+                data["tool_source"] = str(data["tool"])
+
+            # method <-> technique
+            if not data.get("method") and data.get("technique"):
+                data["method"] = str(data["technique"])
+            elif not data.get("technique") and data.get("method"):
+                data["technique"] = str(data["method"])
+
+            # request_excerpt <-> request_sample
+            if not data.get("request_excerpt") and data.get("request_sample"):
+                data["request_excerpt"] = data["request_sample"]
+            elif not data.get("request_sample") and data.get("request_excerpt"):
+                data["request_sample"] = data["request_excerpt"]
+
+            # response_excerpt <-> response_sample
+            if not data.get("response_excerpt") and data.get("response_sample"):
+                data["response_excerpt"] = data["response_sample"]
+            elif not data.get("response_sample") and data.get("response_excerpt"):
+                data["response_sample"] = data["response_excerpt"]
+
+            # hash <-> sha256_hash
+            if not data.get("hash") and data.get("sha256_hash"):
+                data["hash"] = data["sha256_hash"]
+            elif not data.get("sha256_hash") and data.get("hash"):
+                data["sha256_hash"] = data["hash"]
+
+            # timestamp <-> collected_at
+            if not data.get("timestamp") and data.get("collected_at"):
+                data["timestamp"] = data["collected_at"]
+            elif not data.get("collected_at") and data.get("timestamp"):
+                data["collected_at"] = data["timestamp"]
+
+            # redaction_flag <-> redacted_fields
+            if data.get("redacted_fields") and not data.get("redaction_flag"):
+                data["redaction_flag"] = bool(data["redacted_fields"])
+            elif data.get("redaction_flag") and not data.get("redacted_fields"):
+                data["redacted_fields"] = ["[REDACTED]"]
+        return data
+
+    @field_serializer("timestamp", "collected_at")
     def serialize_dt(self, v: Optional[datetime]) -> Optional[str]:
         if v is None:
             return None

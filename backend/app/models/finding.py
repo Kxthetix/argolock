@@ -23,6 +23,7 @@ class DataSource(str, Enum):
     HTTP_RESPONSE = "HTTP_RESPONSE"
     MANUAL_VERIFIED = "MANUAL_VERIFIED"
     AI_VERIFIED = "AI_VERIFIED"
+    EXTERNAL_INTEL = "EXTERNAL_INTEL"
     HYPOTHESIS = "HYPOTHESIS"
 
 
@@ -69,6 +70,26 @@ class Remediation(BaseModel):
     references: List[str] = Field(default_factory=list)
 
 
+class AnalystReviewEntry(BaseModel):
+    """Immutable audit trail entry for finding lifecycle transitions and analyst reviews."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    actor: str = "system"
+    from_state: Optional[str] = None
+    to_state: str
+    mapped_status: str
+    rationale: Optional[str] = None
+    evidence_hash: Optional[str] = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    @field_serializer("timestamp")
+    def serialize_dt(self, v: Optional[datetime]) -> Optional[str]:
+        if v is None:
+            return None
+        return (v.replace(tzinfo=timezone.utc) if v.tzinfo is None else v).isoformat().replace("+00:00", "Z")
+
+
 class Finding(BaseModel):
     """A single vulnerability finding."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -96,9 +117,70 @@ class Finding(BaseModel):
     cwe_ids: List[str] = Field(default_factory=list)
     mitre_techniques: List[str] = Field(default_factory=list)
     evidence_id: Optional[str] = None
+    evidence_hash: Optional[str] = None
+    lifecycle_state: str = Field(default="DISCOVERED", description="Internal 9-stage FindingLifecycleState")
+    lifecycle_status: str = Field(default="Detected", description="Canonical operational status: Detected, Pending Validation, Validated, False Positive, Inconclusive")
+    validation_record: Optional[Dict[str, Any]] = None
+    review_history: List[AnalystReviewEntry] = Field(default_factory=list)
     exploitability_level: Optional[str] = None
     contextual_risk_score: Optional[float] = None
     retest_status: Optional[str] = None
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = ConfigDict(use_enum_values=True)
+
+    def transition_state(
+        self,
+        to_state: str,
+        actor: str = "system",
+        rationale: Optional[str] = None,
+        evidence_hash: Optional[str] = None,
+    ) -> None:
+        from app.models.v1_7_models import map_finding_lifecycle_status
+        from_state = self.lifecycle_state
+        self.lifecycle_state = str(to_state).upper()
+        self.lifecycle_status = map_finding_lifecycle_status(self.lifecycle_state)
+        if evidence_hash:
+            self.evidence_hash = evidence_hash
+        entry = AnalystReviewEntry(
+            from_state=from_state,
+            to_state=self.lifecycle_state,
+            mapped_status=self.lifecycle_status,
+            actor=actor,
+            rationale=rationale,
+            evidence_hash=self.evidence_hash,
+        )
+        self.review_history.append(entry)
+
+
+def transition_finding_state(
+    finding: Finding | Dict[str, Any],
+    to_state: str,
+    actor: str = "system",
+    rationale: Optional[str] = None,
+    evidence_hash: Optional[str] = None,
+) -> None:
+    """Transition finding lifecycle state, compute mapped status, and append review history."""
+    from app.models.v1_7_models import map_finding_lifecycle_status
+    if isinstance(finding, Finding):
+        finding.transition_state(to_state, actor=actor, rationale=rationale, evidence_hash=evidence_hash)
+    elif isinstance(finding, dict):
+        from_state = finding.get("lifecycle_state", "DISCOVERED")
+        finding["lifecycle_state"] = str(to_state).upper()
+        mapped_status = map_finding_lifecycle_status(finding["lifecycle_state"])
+        finding["lifecycle_status"] = mapped_status
+        if evidence_hash:
+            finding["evidence_hash"] = evidence_hash
+        entry = {
+            "id": str(uuid.uuid4()),
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "actor": actor,
+            "from_state": from_state,
+            "to_state": finding["lifecycle_state"],
+            "mapped_status": mapped_status,
+            "rationale": rationale,
+            "evidence_hash": finding.get("evidence_hash"),
+        }
+        if "review_history" not in finding or not isinstance(finding["review_history"], list):
+            finding["review_history"] = []
+        finding["review_history"].append(entry)

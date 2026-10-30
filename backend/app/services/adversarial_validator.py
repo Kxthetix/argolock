@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 from pydantic import BaseModel, Field
-from app.models.v1_7_models import FindingLifecycleState, utc_now_iso
+from app.models.v1_7_models import FindingLifecycleState, utc_now_iso, map_finding_lifecycle_status
 
 
 class AdversarialEvaluationOutcome(str):
@@ -35,6 +35,7 @@ class AdversarialValidationReport(BaseModel):
     confidence_score: float
     checks: List[AdversarialCheck] = Field(default_factory=list)
     state: FindingLifecycleState
+    mapped_status: str = "Detected"
     evaluated_at: str = Field(default_factory=utc_now_iso)
 
 
@@ -53,23 +54,33 @@ class AdversarialValidator:
         poc = finding.get("poc") or {}
         evidence = finding.get("evidence") or finding.get("raw_output") or ""
         endpoint = finding.get("affected_endpoint", "")
+        data_source = str(finding.get("data_source") or "").upper()
+        is_hypothesis = (data_source == "HYPOTHESIS")
+        has_replay = bool(
+            finding.get("reproduced_live")
+            or finding.get("validation_record")
+            or (isinstance(poc, dict) and poc.get("request") and poc.get("response"))
+        )
 
         checks: List[AdversarialCheck] = []
 
         # 1. Can it be reproduced?
-        has_poc = bool(poc.get("request") or poc.get("payload") or evidence)
+        # AI output alone without live replay creates only HYPOTHESIS and fails reproduction
+        has_poc = bool(poc.get("request") or poc.get("payload") or evidence) and not (is_hypothesis and not has_replay)
         checks.append(AdversarialCheck(
             question="Can it be reproduced with documented steps?",
             passed=has_poc,
-            rationale="Deterministic request/response proof or evidence artifacts present" if has_poc else "Missing concrete request/response proof"
+            rationale="Deterministic request/response proof or evidence artifacts present" if has_poc else (
+                "Pure AI hypothesis without deterministic replay proof" if is_hypothesis else "Missing concrete request/response proof"
+            )
         ))
 
         # 2. Is the observed behavior actually abnormal?
-        is_generic_404_or_waf = any(w in desc for w in ["403 forbidden", "waf block", "cloudflare", "generic 404"])
+        is_generic_404_or_waf = any(w in desc or w in str(evidence).lower() for w in ["403 forbidden", "waf block", "cloudflare", "generic 404", "access denied", "status code 403"])
         checks.append(AdversarialCheck(
             question="Is the observed behavior actually an anomalous vulnerability?",
             passed=not is_generic_404_or_waf,
-            rationale="Differentiates real application flaw from standard WAF blocking or generic error page"
+            rationale="Target enforced access control or WAF block (HTTP 403/Forbidden); finding is inconclusive" if is_generic_404_or_waf else "Differentiates real application flaw from standard WAF blocking or generic error page"
         ))
 
         # 3. Is the data genuinely sensitive?
@@ -81,18 +92,18 @@ class AdversarialValidator:
         ))
 
         # 4. Is the vulnerability exploitable in practice?
-        is_confirmed = finding.get("confirmed", True)
+        is_confirmed = finding.get("confirmed", True) and not is_generic_404_or_waf and not (is_hypothesis and not has_replay)
         checks.append(AdversarialCheck(
             question="Is the vulnerability exploitable without theoretical-only assumptions?",
             passed=bool(is_confirmed),
-            rationale="Confirmed via live probe response validation"
+            rationale="Confirmed via live probe response validation" if is_confirmed else "Unconfirmed or blocked by security controls"
         ))
 
         # 5. Does claimed impact occur?
         checks.append(AdversarialCheck(
             question="Does the claimed impact actually manifest on the target?",
-            passed=True,
-            rationale="Impact matches observed payload execution boundary"
+            passed=not is_generic_404_or_waf,
+            rationale="Impact matches observed payload execution boundary" if not is_generic_404_or_waf else "Impact blocked by defensive perimeter"
         ))
 
         # 6. Is the severity justified?
@@ -127,25 +138,36 @@ class AdversarialValidator:
         ))
 
         # 9. Is the evidence sufficient?
-        has_evidence = len(str(evidence)) > 10 or bool(poc)
+        has_evidence = (len(str(evidence)) > 10 or bool(poc.get("request"))) and not (is_hypothesis and not has_replay)
         checks.append(AdversarialCheck(
             question="Is the evidence chain sufficient to withstand developer audit?",
             passed=has_evidence,
-            rationale="Evidence captures HTTP payload, status, and differential behavior" if has_evidence else "Insufficient telemetry captured"
+            rationale="Evidence captures HTTP payload, status, and differential behavior" if has_evidence else (
+                "Insufficient evidence: AI speculative output alone cannot serve as proof" if is_hypothesis else "Insufficient telemetry captured"
+            )
         ))
 
         # 10. Can the finding be independently verified?
         checks.append(AdversarialCheck(
             question="Can an external reviewer independently verify the finding?",
             passed=has_evidence and has_poc,
-            rationale="Clear reproduction instructions and target parameters documented"
+            rationale="Clear reproduction instructions and target parameters documented" if (has_evidence and has_poc) else "Cannot be independently verified"
         ))
 
         # Decision synthesis
         failed_count = sum(1 for c in checks if not c.passed)
-        if not checks[0].passed and not checks[8].passed:
+        is_explicit_fp = finding.get("false_positive", False)
+        is_explicit_inconclusive = (
+            finding.get("validation_status") == "inconclusive"
+            or is_generic_404_or_waf
+        )
+
+        if is_explicit_fp or (not checks[0].passed and not checks[8].passed):
             decision = AdversarialEvaluationOutcome.KILL
             state = FindingLifecycleState.KILLED
+        elif is_explicit_inconclusive:
+            decision = AdversarialEvaluationOutcome.BLOCK
+            state = FindingLifecycleState.BLOCKED
         elif is_overrated:
             decision = AdversarialEvaluationOutcome.DOWNGRADE
             state = FindingLifecycleState.DOWNGRADED
@@ -157,6 +179,7 @@ class AdversarialValidator:
             state = FindingLifecycleState.CONFIRMED
 
         confidence = round(max(0.4, 1.0 - (failed_count * 0.1)), 2)
+        mapped = map_finding_lifecycle_status(state)
 
         return AdversarialValidationReport(
             finding_id=f_id,
@@ -167,4 +190,5 @@ class AdversarialValidator:
             confidence_score=confidence,
             checks=checks,
             state=state,
+            mapped_status=mapped,
         )

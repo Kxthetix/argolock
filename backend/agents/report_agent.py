@@ -38,8 +38,8 @@ class ReportAgent(BaseAgent):
     ) -> Dict[str, Any]:
         """Generate the full security report."""
         target = scan_doc["scope"]["target"]
-        # Validate and filter findings: reject non-specific/placeholders, record 403 as inconclusive
-        findings = validate_and_filter_findings(findings)
+        # Validate and filter findings: reject non-specific/placeholders, record 403 as inconclusive, require evidence & validation
+        findings = validate_and_filter_findings(findings, require_validation_record=True)
         total = len(findings)
         severities = {
             "critical": sum(1 for f in findings if f.get("severity") == "critical"),

@@ -42,6 +42,51 @@ class FindingLifecycleState(str, Enum):
     REPORTED = "REPORTED"             # Integrated into capability graph and report
 
 
+class MappedLifecycleStatus(str, Enum):
+    DETECTED = "Detected"
+    PENDING_VALIDATION = "Pending Validation"
+    VALIDATED = "Validated"
+    FALSE_POSITIVE = "False Positive"
+    INCONCLUSIVE = "Inconclusive"
+
+
+LIFECYCLE_MAPPING: Dict[FindingLifecycleState, MappedLifecycleStatus] = {
+    FindingLifecycleState.DISCOVERED: MappedLifecycleStatus.DETECTED,
+    FindingLifecycleState.CANDIDATE: MappedLifecycleStatus.DETECTED,
+    FindingLifecycleState.REPRODUCING: MappedLifecycleStatus.PENDING_VALIDATION,
+    FindingLifecycleState.VALIDATING: MappedLifecycleStatus.PENDING_VALIDATION,
+    FindingLifecycleState.VERIFIED: MappedLifecycleStatus.VALIDATED,
+    FindingLifecycleState.CONFIRMED: MappedLifecycleStatus.VALIDATED,
+    FindingLifecycleState.DOWNGRADED: MappedLifecycleStatus.VALIDATED,
+    FindingLifecycleState.REPORTED: MappedLifecycleStatus.VALIDATED,
+    FindingLifecycleState.KILLED: MappedLifecycleStatus.FALSE_POSITIVE,
+    FindingLifecycleState.BLOCKED: MappedLifecycleStatus.INCONCLUSIVE,
+    FindingLifecycleState.IMPACT_TEST: MappedLifecycleStatus.PENDING_VALIDATION,
+}
+
+
+def map_finding_lifecycle_status(state: FindingLifecycleState | str) -> str:
+    """
+    Map internal 9-stage FindingLifecycleState to canonical operational lifecycle status:
+    - DISCOVERED / CANDIDATE -> Detected
+    - REPRODUCING / VALIDATING -> Pending Validation
+    - VERIFIED / CONFIRMED / DOWNGRADED / REPORTED -> Validated
+    - KILLED -> False Positive
+    - BLOCKED -> Inconclusive
+    """
+    if isinstance(state, FindingLifecycleState):
+        return LIFECYCLE_MAPPING.get(state, MappedLifecycleStatus.DETECTED).value
+    try:
+        parsed = FindingLifecycleState(str(state).upper())
+        return LIFECYCLE_MAPPING.get(parsed, MappedLifecycleStatus.DETECTED).value
+    except Exception:
+        str_val = str(state).strip()
+        for mapped in MappedLifecycleStatus:
+            if str_val.lower() == mapped.value.lower():
+                return mapped.value
+        return MappedLifecycleStatus.DETECTED.value
+
+
 # ─── 3. Action Classification (Execution Gates) ─────────────────────────────────
 
 class ActionClassification(str, Enum):

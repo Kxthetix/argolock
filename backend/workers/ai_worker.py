@@ -93,22 +93,36 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             _log(scan_id, "error", f"Remediation agent failed: {e}", "remediation-agent")
             remediated_findings = scored_findings
 
-        # Save verified findings to DB (DataSource mandatory, HYPOTHESIS never persisted/reported)
-        finding_dicts = []
-        if remediated_findings:
-            raw_dicts = [f if isinstance(f, dict) else f.model_dump() for f in remediated_findings]
-            for f in raw_dicts:
-                ds = str(f.get("data_source") or "TOOL_OUTPUT").upper()
-                if ds == "HYPOTHESIS":
-                    logger.warning(f"Discarding hypothetical finding '{f.get('title')}' from scan {scan_id} — HYPOTHESIS is never reported.")
-                    continue
-                f["data_source"] = ds
-                finding_dicts.append(f)
+        # ── Mandatory Verification Pipeline ────────────────────────────────────────
+        _update_scan_status(db, scan_id, "ai_analysis", "Validating & Replaying Findings", 90)
+        _log(scan_id, "info", "Running deterministic replay, false-positive checks, and adversarial validation...", "validation-engine")
+        from app.services.finding_pipeline_service import process_and_validate_findings_pipeline
+        target_host = scan_doc.get("scope", {}).get("target", "")
+        raw_finding_dicts = [f if isinstance(f, dict) else f.model_dump() for f in (remediated_findings or [])]
+        validated_findings, excluded_findings = process_and_validate_findings_pipeline(
+            scan_id=scan_id,
+            findings=raw_finding_dicts,
+            target=target_host,
+            db=db,
+        )
+        _log(
+            scan_id,
+            "success",
+            f"Validation complete: {len(validated_findings)} validated, {len(excluded_findings)} excluded (FP/inconclusive/hypothesis)",
+            "validation-engine"
+        )
 
-            if finding_dicts:
-                import copy
-                db["findings"].insert_many(copy.deepcopy(finding_dicts))
+        finding_dicts = validated_findings
 
+        # Save findings to DB (DataSource mandatory, HYPOTHESIS never persisted/reported)
+        all_eval_findings = validated_findings + excluded_findings
+        if all_eval_findings:
+            import copy
+            to_persist = [f for f in all_eval_findings if str(f.get("data_source") or "").upper() != "HYPOTHESIS"]
+            if to_persist:
+                db["findings"].insert_many(copy.deepcopy(to_persist))
+
+        if finding_dicts:
             # Update counts on scan
             counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
             for f in finding_dicts:
