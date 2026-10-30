@@ -114,7 +114,7 @@ class NmapTool(BaseTool):
         xml_lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<!DOCTYPE nmaprun>',
-            f'<nmaprun scanner="nmap" args="nmap (fallback_run) {target}">',
+            f'<nmaprun scanner="socket-fallback" tool="socket-fallback" args="socket-fallback (python-connect) {target}">',
             f'<host><address addr="{ip_addr}" addrtype="ipv4"/><status state="up"/>',
             '<ports>'
         ]
@@ -232,10 +232,15 @@ class NmapTool(BaseTool):
                             vuln["cve_ids"] = cves
                         vulnerabilities.append(vuln)
 
-        return {
+        is_socket_fallback = (root.get("scanner") == "socket-fallback" or "socket-fallback" in root.get("args", ""))
+        res = {
             "hosts": hosts,
             "open_ports": open_ports,
             "services": services,
             "vulnerabilities": vulnerabilities,
             "total_open_ports": len(open_ports),
         }
+        if is_socket_fallback:
+            res["tool"] = "socket-fallback"
+            res["stage_status"] = "partial"
+        return res

@@ -16,6 +16,16 @@ class Severity(str, Enum):
     INFO = "info"
 
 
+class DataSource(str, Enum):
+    TOOL_OUTPUT = "TOOL_OUTPUT"
+    NETWORK_PROBE = "NETWORK_PROBE"
+    DNS_RESPONSE = "DNS_RESPONSE"
+    HTTP_RESPONSE = "HTTP_RESPONSE"
+    MANUAL_VERIFIED = "MANUAL_VERIFIED"
+    AI_VERIFIED = "AI_VERIFIED"
+    HYPOTHESIS = "HYPOTHESIS"
+
+
 class OWASPCategory(str, Enum):
     A01_BROKEN_ACCESS_CONTROL = "A01:2021 Broken Access Control"
     A02_CRYPTO_FAILURES = "A02:2021 Cryptographic Failures"
@@ -72,6 +82,7 @@ class Finding(BaseModel):
     affected_endpoint: str
     affected_parameter: Optional[str] = None
     tool_source: str = ""
+    data_source: DataSource = Field(default=DataSource.TOOL_OUTPUT, description="Mandatory verifiable origin data source")
     raw_finding: Optional[Dict[str, Any]] = None
     poc: Optional[ProofOfConcept] = None
     remediation: Optional[Remediation] = None

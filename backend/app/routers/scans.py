@@ -3,14 +3,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from loguru import logger
 
 from app.database import get_db
 from app.models.scan import (
     CreateScanRequest, ScanDocument, ScanStatus, ScanPhase
 )
-from app.services.scope_validator import validate_scope
+from app.routers.auth import get_current_user, require_role
+from app.services.scope_validator import validate_scope, normalize_target, SAFE_TEST_TARGETS
+from app.services.target_authorization_service import target_auth_service
 from workers.celery_app import run_full_pipeline
 
 router = APIRouter()
@@ -36,17 +38,49 @@ def _serialize(doc: dict) -> dict:
 
 
 @router.post("", status_code=201)
-async def create_scan(request: CreateScanRequest):
-    """Create a new scan and enqueue the pipeline."""
+async def create_scan(
+    request: CreateScanRequest,
+    current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
+):
+    """Create a new scan and enqueue the pipeline after strict authorization verification."""
     db = get_db()
+    target = request.scope.target
 
-    # ── Scope validation ──────────────────────────────────────────────────────
+    # ── Scope & Non-Assessable Validation ─────────────────────────────────────
     is_valid, reason = await validate_scope(
-        request.scope.target,
+        target,
         request.scope.authorized,
     )
     if not is_valid:
         raise HTTPException(status_code=400, detail=f"Scope validation failed: {reason}")
+
+    # ── Target Ownership & Stored Scope/Exclusions Verification ──────────────
+    norm_target = normalize_target(target)
+    is_benchmark = norm_target in SAFE_TEST_TARGETS or any(norm_target.endswith(f".{t}") for t in SAFE_TEST_TARGETS)
+
+    if not is_benchmark:
+        auth = await target_auth_service.get_authorization_by_target(target)
+        if not auth:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Target '{target}' is not registered in ARGOLOCK asset authorization inventory. Explicit pre-authorization required."
+            )
+        if not auth.ownership_verified:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Target '{target}' lacks verified ownership proof (DNS TXT or well-known challenge token required)."
+            )
+        if not auth.scope:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Target authorization for '{target}' is missing stored scope definitions."
+            )
+        now = datetime.now(timezone.utc)
+        if auth.testing_window_end and now > auth.testing_window_end:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Target authorization testing window expired at {auth.testing_window_end.isoformat()}."
+            )
 
     # ── Create scan document ──────────────────────────────────────────────────
     scan = ScanDocument(

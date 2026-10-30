@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from urllib.parse import urlencode
 
 import httpx
@@ -33,6 +33,7 @@ class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, description="User display name")
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=6, description="User password (min 6 characters)")
+    role: Optional[str] = Field("viewer", description="Role: admin | analyst | viewer")
 
 
 class OTPSendRequest(BaseModel):
@@ -44,51 +45,92 @@ class OTPVerifyRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=6, description="6-digit OTP code")
 
 
+# ── Roles & Permissions ───────────────────────────────────────────────────────
+
+VALID_ROLES = {"admin", "analyst", "viewer"}
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _create_jwt(email: str) -> str:
+def _create_jwt(email: str, role: str = "viewer") -> str:
     """Create a JWT access token that expires in 7 days."""
     token_expiry = datetime.now(timezone.utc) + timedelta(days=7)
     return jwt.encode(
-        {"sub": email, "exp": token_expiry},
+        {"sub": email, "role": role, "exp": token_expiry},
         settings.secret_key,
         algorithm="HS256",
     )
 
 
-# ── Dependency ───────────────────────────────────────────────────────────────
+# ── Dependencies ─────────────────────────────────────────────────────────────
 
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> Dict[str, Any]:
-    """Dependency to validate the JWT token, or fallback to default local operator user."""
-    default_user = {
-        "id": "operator-001",
-        "email": "operator@argolock.net",
-        "name": "Security Operator",
-        "role": "admin",
-        "auth_provider": "local",
-    }
-    if credentials is None:
-        return default_user
+    """Dependency to validate JWT token. Fails closed (401) on missing, invalid, or unknown token."""
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     token = credentials.credentials
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
-        email: str = payload.get("sub")
-        if email:
-            db = get_db()
-            user = await db["users"].find_one({"email": email})
-            if user:
-                user.pop("_id", None)
-                user.pop("password_hash", None)
-                return user
-    except Exception:
-        pass
+        email: str | None = payload.get("sub")
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload: missing subject",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except (JWTError, Exception) as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid authentication token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    return default_user
+    db = get_db()
+    user = await db["users"].find_one({"email": email})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User associated with token not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user.pop("_id", None)
+    user.pop("password_hash", None)
+    user["role"] = user.get("role") or payload.get("role") or "analyst"
+    return user
+
+
+def require_role(*allowed_roles: str):
+    """Enforce that current_user has one of the allowed roles (admin has superuser access)."""
+    async def _role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+        user_role = current_user.get("role", "viewer")
+        if user_role not in allowed_roles and user_role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: operation requires one of {allowed_roles} (current role: '{user_role}')",
+            )
+        return current_user
+    return _role_checker
+
+
+require_admin = require_role("admin")
+require_analyst = require_role("analyst", "admin")
+require_viewer = require_role("viewer", "analyst", "admin")
 
 
 # ── Endpoints: Email / Password ─────────────────────────────────────────────
@@ -104,11 +146,14 @@ async def login(request: LoginRequest):
     user = await db["users"].find_one({"email": email})
 
     if user is None:
-        # Register new user dynamically on first login for demo convenience
+        # Register new user dynamically on first login
         hashed = hash_password(password)
-        user_doc = UserDocument(email=email, password_hash=hashed)
+        user_count = await db["users"].count_documents({})
+        initial_role = "admin" if (user_count == 0 or email.startswith("admin@")) else "analyst"
+        user_doc = UserDocument(email=email, password_hash=hashed, role=initial_role)
         await db["users"].insert_one(user_doc.model_dump())
-        logger.info(f"👤 [AUTH] Registered new user: {email} with Argon2id")
+        logger.info(f"👤 [AUTH] Registered new user: {email} with role {initial_role}")
+        role = initial_role
     else:
         # Verify credentials for existing user
         stored_hash = user.get("password_hash")
@@ -117,14 +162,15 @@ async def login(request: LoginRequest):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid email or password",
             )
+        role = user.get("role") or "analyst"
 
-    access_token = _create_jwt(email)
-    return {"access_token": access_token, "token_type": "bearer", "email": email}
+    access_token = _create_jwt(email, role)
+    return {"access_token": access_token, "token_type": "bearer", "email": email, "role": role}
 
 
 @router.post("/register")
 async def register(request: RegisterRequest):
-    """Explicitly register a new user with name, email, and password."""
+    """Explicitly register a new user with name, email, password, and role."""
     email = request.email.strip().lower()
 
     db = get_db()
@@ -135,18 +181,23 @@ async def register(request: RegisterRequest):
             detail="A user with this email already exists",
         )
 
+    requested_role = (request.role or "viewer").lower()
+    if requested_role not in VALID_ROLES:
+        requested_role = "viewer"
+
     hashed = hash_password(request.password)
     user_doc = UserDocument(
         email=email,
         password_hash=hashed,
         name=request.name.strip(),
+        role=requested_role,
         auth_provider="email",
     )
     await db["users"].insert_one(user_doc.model_dump())
-    logger.info(f"👤 [AUTH] Registered new user via /register: {email}")
+    logger.info(f"👤 [AUTH] Registered new user via /register: {email} (role: {requested_role})")
 
-    access_token = _create_jwt(email)
-    return {"access_token": access_token, "token_type": "bearer", "email": email}
+    access_token = _create_jwt(email, requested_role)
+    return {"access_token": access_token, "token_type": "bearer", "email": email, "role": requested_role}
 
 
 # ── Endpoints: OTP ───────────────────────────────────────────────────────────
@@ -183,17 +234,21 @@ async def otp_verify(request: OTPVerifyRequest):
     # setting a password, or an existing user)
     user = await db["users"].find_one({"email": email})
     if user is None:
-        user_doc = UserDocument(email=email, email_verified=True)
+        user_count = await db["users"].count_documents({})
+        initial_role = "admin" if (user_count == 0 or email.startswith("admin@")) else "analyst"
+        user_doc = UserDocument(email=email, email_verified=True, role=initial_role)
         await db["users"].insert_one(user_doc.model_dump())
         logger.info(f"👤 [AUTH] Created user via OTP verification: {email}")
+        role = initial_role
     else:
         await db["users"].update_one(
             {"email": email},
             {"$set": {"email_verified": True, "updated_at": datetime.now(timezone.utc)}},
         )
+        role = user.get("role") or "analyst"
 
-    access_token = _create_jwt(email)
-    return {"access_token": access_token, "token_type": "bearer", "email": email}
+    access_token = _create_jwt(email, role)
+    return {"access_token": access_token, "token_type": "bearer", "email": email, "role": role}
 
 
 # ── Endpoints: Google OAuth ──────────────────────────────────────────────────

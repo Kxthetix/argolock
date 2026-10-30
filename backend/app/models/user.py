@@ -15,6 +15,7 @@ class UserDocument(BaseModel):
     email: str = Field(..., description="Unique user email address")
     password_hash: Optional[str] = Field(None, description="Argon2id password hash (null for OAuth-only users)")
     name: Optional[str] = Field(None, description="User display name")
+    role: str = Field(default="viewer", description="Role: admin | analyst | viewer")
     avatar_url: Optional[str] = Field(None, description="Profile avatar URL (from OAuth provider)")
     auth_provider: str = Field(default="email", description="Authentication provider: email | google | github")
     provider_id: Optional[str] = Field(None, description="OAuth provider user ID")

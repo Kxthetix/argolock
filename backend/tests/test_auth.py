@@ -75,14 +75,14 @@ async def test_user_login_invalid_password(client):
 
 @pytest.mark.asyncio
 async def test_protected_me_route(client):
-    """Verify that the /me route validates the JWT and returns user profile without password_hash."""
+    """Verify that the /me route validates the JWT and returns user profile without password_hash, failing closed on missing token."""
     email = "meuser@argolock.com"
     password = "meuserpassword"
     
-    # 1. Access without token -> 200 with default operator profile
+    # 1. Access without token -> 401 Unauthorized (fail-closed)
     response = await client.get("/api/auth/me")
-    assert response.status_code == 200
-    assert response.json()["role"] == "admin"
+    assert response.status_code == 401
+    assert "detail" in response.json()
 
     # 2. Login to get token
     payload = {"email": email, "password": password}
@@ -167,7 +167,7 @@ async def test_otp_send_and_verify(client):
 
 @pytest.mark.asyncio
 async def test_expired_token_handling(client):
-    """Verify that an expired JWT token falls back to operator without breaking."""
+    """Verify that an expired JWT token returns 401 Unauthorized (fail-closed)."""
     from datetime import datetime, timedelta, timezone
     from jose import jwt
     from app.config import settings
@@ -182,13 +182,40 @@ async def test_expired_token_handling(client):
 
     headers = {"Authorization": f"Bearer {expired_token}"}
     response = await client.get("/api/auth/me", headers=headers)
-    assert response.status_code == 200
-    assert response.json()["role"] == "admin"
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_system_endpoints_public_access(client):
-    """Verify that /api/system/agents and /api/system/tools are accessible without auth."""
+async def test_invalid_signature_and_unknown_user_tokens(client):
+    """Verify that forged tokens or tokens for nonexistent users fail closed with 401."""
+    from datetime import datetime, timedelta, timezone
+    from jose import jwt
+
+    future_exp = datetime.now(timezone.utc) + timedelta(hours=1)
+    
+    # 1. Invalid signature (signed with wrong secret)
+    forged_token = jwt.encode(
+        {"sub": "attacker@argolock.com", "exp": future_exp},
+        "wrong-secret-key-12345",
+        algorithm="HS256",
+    )
+    res1 = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {forged_token}"})
+    assert res1.status_code == 401
+
+    # 2. Token for user not in database
+    from app.config import settings
+    validly_signed_unknown_user = jwt.encode(
+        {"sub": "ghost_user_never_registered@argolock.com", "exp": future_exp},
+        settings.secret_key,
+        algorithm="HS256",
+    )
+    res2 = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {validly_signed_unknown_user}"})
+    assert res2.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_system_endpoints_public_access_and_auth_checks(client):
+    """Verify that public endpoints work without auth, but protected system routes fail closed."""
     # Agents endpoint should return 200 without auth header
     agents_res = await client.get("/api/system/agents")
     assert agents_res.status_code == 200
@@ -202,9 +229,51 @@ async def test_system_endpoints_public_access(client):
     tools_data = tools_res.json()
     assert "tools" in tools_data
 
-    # Clear-history endpoint works with default operator fallback
-    clear_res = await client.post("/api/system/clear-history")
-    assert clear_res.status_code == 200
+    # Clear-history endpoint without token fails closed with 401
+    clear_unauth = await client.post("/api/system/clear-history")
+    assert clear_unauth.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_role_enforcement_per_route(client):
+    """Verify that roles (admin, analyst, viewer) are strictly enforced per route."""
+    db = get_db()
+
+    # 1. Register admin user
+    admin_email = "admin_role_test@argolock.com"
+    await db["users"].delete_one({"email": admin_email})
+    reg_admin = await client.post("/api/auth/register", json={
+        "name": "Admin User", "email": admin_email, "password": "AdminPassword123!", "role": "admin"
+    })
+    admin_token = reg_admin.json()["access_token"]
+
+    # 2. Register analyst user
+    analyst_email = "analyst_role_test@argolock.com"
+    await db["users"].delete_one({"email": analyst_email})
+    reg_analyst = await client.post("/api/auth/register", json={
+        "name": "Analyst User", "email": analyst_email, "password": "AnalystPassword123!", "role": "analyst"
+    })
+    analyst_token = reg_analyst.json()["access_token"]
+
+    # 3. Register viewer user
+    viewer_email = "viewer_role_test@argolock.com"
+    await db["users"].delete_one({"email": viewer_email})
+    reg_viewer = await client.post("/api/auth/register", json={
+        "name": "Viewer User", "email": viewer_email, "password": "ViewerPassword123!", "role": "viewer"
+    })
+    viewer_token = reg_viewer.json()["access_token"]
+
+    # Test Admin route: /api/system/clear-history
+    # Viewer -> 403
+    res_v = await client.post("/api/system/clear-history", headers={"Authorization": f"Bearer {viewer_token}"})
+    assert res_v.status_code == 403
+    # Analyst -> 403
+    res_a = await client.post("/api/system/clear-history", headers={"Authorization": f"Bearer {analyst_token}"})
+    assert res_a.status_code == 403
+    # Admin -> 200
+    res_adm = await client.post("/api/system/clear-history", headers={"Authorization": f"Bearer {admin_token}"})
+    assert res_adm.status_code == 200
+
 
 
 

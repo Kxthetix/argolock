@@ -86,11 +86,21 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             _log(scan_id, "error", f"Remediation agent failed: {e}", "remediation-agent")
             remediated_findings = scored_findings
 
-        # Save findings to DB
+        # Save verified findings to DB (DataSource mandatory, HYPOTHESIS never persisted/reported)
+        finding_dicts = []
         if remediated_findings:
-            finding_dicts = [f if isinstance(f, dict) else f.model_dump() for f in remediated_findings]
-            import copy
-            db["findings"].insert_many(copy.deepcopy(finding_dicts))
+            raw_dicts = [f if isinstance(f, dict) else f.model_dump() for f in remediated_findings]
+            for f in raw_dicts:
+                ds = str(f.get("data_source") or "TOOL_OUTPUT").upper()
+                if ds == "HYPOTHESIS":
+                    logger.warning(f"Discarding hypothetical finding '{f.get('title')}' from scan {scan_id} — HYPOTHESIS is never reported.")
+                    continue
+                f["data_source"] = ds
+                finding_dicts.append(f)
+
+            if finding_dicts:
+                import copy
+                db["findings"].insert_many(copy.deepcopy(finding_dicts))
 
             # Update counts on scan
             counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
@@ -114,14 +124,50 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             # Broadcast each finding to dashboard
             for f in finding_dicts[:20]:  # Cap broadcast to 20 findings
                 _broadcast(scan_id, {"type": "finding", "finding": f})
+        else:
+            db["scans"].update_one(
+                {"id": scan_id},
+                {"$set": {
+                    "finding_count": 0,
+                    "critical_count": 0,
+                    "high_count": 0,
+                    "medium_count": 0,
+                    "low_count": 0,
+                    "info_count": 0,
+                }}
+            )
 
         # ── Agent 4: Report Generator ─────────────────────────────────────────────
         _update_scan_status(db, scan_id, "reporting", "Generating Report", 93)
         _log(scan_id, "info", "Agent 4: Generating professional security report...", "report-agent")
+        
+        # Determine target reachability and assessment coverage
+        tr = scan_doc.get("tool_results", {})
+        open_ports = (tr.get("nmap", {}).get("parsed_data") or {}).get("open_ports", []) or \
+                     (tr.get("naabu", {}).get("parsed_data") or {}).get("open_ports", [])
+        live_endpoints = (tr.get("httpx_probe", {}).get("parsed_data") or {}).get("probes", [])
+
+        target_reachable = bool(open_ports or live_endpoints)
+        coverage_level = "full" if (target_reachable and len(open_ports) > 0 and len(live_endpoints) > 0) else ("partial" if target_reachable else "none")
+        coverage_summary = "none" if not target_reachable else f"{coverage_level} coverage"
+
+        scan_doc["coverage"] = coverage_level
+        scan_doc["coverage_summary"] = coverage_summary
+        scan_doc["target_reachable"] = target_reachable
+
+        db["scans"].update_one(
+            {"id": scan_id},
+            {"$set": {
+                "coverage": coverage_level,
+                "coverage_summary": coverage_summary,
+                "target_reachable": target_reachable,
+            }}
+        )
+
         try:
             agent4 = ReportAgent(provider)
             report = run_async(
-                agent4.generate(scan_id, scan_doc, remediated_findings)
+                agent4.generate(scan_id, scan_doc, finding_dicts)
             )
             db["reports"].insert_one({**report, "_inserted": True})
             db["reports"].update_one({"_inserted": True}, {"$unset": {"_inserted": 1}})

@@ -166,7 +166,17 @@ def run_recon(self, scan_id: str, scan_data: dict):
             _save_tool_result(db, scan_id, "nmap", result)
             recon_results["nmap"] = result.parsed_data or {}
             ports = len(recon_results["nmap"].get("open_ports", []))
-            _log(scan_id, "success", f"Nmap found {ports} open ports", "nmap")
+            from app.models.scan import ToolStatus
+            if result.tool_name == "socket-fallback" or result.status == ToolStatus.PARTIAL:
+                recon_results["nmap"]["tool"] = "socket-fallback"
+                recon_results["nmap"]["stage_status"] = "partial"
+                _log(scan_id, "warning", f"Nmap fallback: Python socket-fallback probed {ports} open ports (stage partial)", "socket-fallback")
+                db["scans"].update_one(
+                    {"id": scan_id},
+                    {"$set": {"recon_status": "partial", "tool_results.nmap.tool": "socket-fallback"}}
+                )
+            else:
+                _log(scan_id, "success", f"Nmap found {ports} open ports", "nmap")
         except Exception as e:
             _log(scan_id, "error", f"Nmap failed: {e}", "nmap")
 

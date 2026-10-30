@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter, Depends
 
 from app.config import settings
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, require_role
 
 router = APIRouter()
 
@@ -252,7 +252,7 @@ async def get_tools_status():
 
 
 @router.post("/clear-history")
-async def clear_history(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def clear_history(current_user: Dict[str, Any] = Depends(require_role("admin"))):
     """Delete all documents in scans, findings, reports, and raw_findings collections to clear database history."""
     from app.database import get_db
     db = get_db()

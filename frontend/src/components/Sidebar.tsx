@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Scan, FileText, Activity, Shield, Cpu, ShieldCheck, Crosshair
+  LayoutDashboard, Scan, FileText, Activity, Shield, Cpu, ShieldCheck, Crosshair, LogOut, LogIn
 } from 'lucide-react';
 import { authApi, clearAuthSession, getStoredToken } from '../lib/api';
 
@@ -15,7 +15,8 @@ const navItems: { to: string; label: string; icon: any; exact?: boolean }[] = [
 ];
 
 export function Sidebar() {
-  const [user, setUser] = useState<{ name?: string; email: string; avatar_url?: string } | null>(null);
+  const navigate = useNavigate();
+  const [user, setUser] = useState<{ name?: string; email: string; role?: string; avatar_url?: string } | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -28,7 +29,6 @@ export function Sidebar() {
         const data = await authApi.me();
         setUser(data);
       } catch (err) {
-        console.error('Failed to fetch user profile:', err);
         setUser(null);
       }
     };
@@ -36,9 +36,16 @@ export function Sidebar() {
   }, []);
 
   const token = getStoredToken();
-  const email = user?.email || (token ? localStorage.getItem('auth_email') : null) || 'operator@argolock.net';
-  const displayName = user?.name || (email !== 'operator@argolock.net' ? email.split('@')[0] : 'Security Operator');
+  const email = user?.email || (token ? localStorage.getItem('auth_email') : null);
+  const role = user?.role || (token ? localStorage.getItem('auth_role') : null) || 'viewer';
+  const displayName = user?.name || (email ? email.split('@')[0] : 'Operator');
   const avatarUrl = user?.avatar_url;
+
+  const handleLogout = () => {
+    authApi.logout();
+    setUser(null);
+    navigate('/login');
+  };
 
   return (
     <aside className="sidebar">
@@ -95,46 +102,92 @@ export function Sidebar() {
           flexDirection: 'column',
           gap: '8px'
         }}>
-          <div className="nav-section-label" style={{ marginBottom: 2 }}>OPERATOR CONSOLE</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {avatarUrl ? (
-                <img 
-                  src={avatarUrl} 
-                  alt="Avatar" 
-                  style={{ 
-                    width: '24px', 
-                    height: '24px', 
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="nav-section-label" style={{ margin: 0 }}>OPERATOR CONSOLE</div>
+            {token && (
+              <span style={{
+                fontSize: '9px',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                background: role === 'admin' ? 'rgba(239, 68, 68, 0.2)' : role === 'analyst' ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                color: role === 'admin' ? '#f87171' : role === 'analyst' ? '#818cf8' : '#cbd5e1',
+                border: `1px solid ${role === 'admin' ? 'rgba(239, 68, 68, 0.3)' : role === 'analyst' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(255, 255, 255, 0.2)'}`,
+              }}>
+                {role}
+              </span>
+            )}
+          </div>
+
+          {token ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {avatarUrl ? (
+                  <img 
+                    src={avatarUrl} 
+                    alt="Avatar" 
+                    style={{ 
+                      width: '24px', 
+                      height: '24px', 
+                      borderRadius: '50%',
+                      objectFit: 'cover' 
+                    }} 
+                  />
+                ) : (
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
                     borderRadius: '50%',
-                    objectFit: 'cover' 
-                  }} 
-                />
-              ) : (
-                <div style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '50%',
-                  background: 'rgba(99, 102, 241, 0.15)',
-                  color: '#818cf8',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    color: '#818cf8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    border: '1px solid rgba(99, 102, 241, 0.25)'
+                  }}>
+                    {displayName.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <span style={{ fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{displayName}</span>
+                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{email}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  color: '#f87171',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  border: '1px solid rgba(99, 102, 241, 0.25)'
-                }}>
-                  {displayName.substring(0, 2).toUpperCase()}
-                </div>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <span style={{ fontWeight: 600, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{displayName}</span>
-                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{email}</span>
-              </div>
-            </div>
+                  gap: '6px',
+                  marginTop: '4px',
+                  width: '100%',
+                  transition: 'background-color 0.2s',
+                }}
+              >
+                <LogOut style={{ width: 13, height: 13 }} />
+                <span>Sign Out</span>
+              </button>
+            </>
+          ) : (
             <NavLink
-              to="/"
+              to="/login"
               style={{
-                background: 'rgba(99, 102, 241, 0.08)',
-                border: '1px solid rgba(99, 102, 241, 0.25)',
+                background: 'rgba(99, 102, 241, 0.15)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
                 borderRadius: '6px',
                 padding: '8px 12px',
                 color: '#818cf8',
@@ -148,13 +201,37 @@ export function Sidebar() {
                 marginTop: '4px',
                 textDecoration: 'none',
                 width: '100%',
-                transition: 'background-color 0.2s, border-color 0.2s',
               }}
             >
-              <span>🌐</span>
-              <span>Landing Page</span>
+              <LogIn style={{ width: 14, height: 14 }} />
+              <span>Operator Sign In</span>
             </NavLink>
-          </div>
+          )}
+
+          <NavLink
+            to="/"
+            style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              color: 'rgba(255, 255, 255, 0.6)',
+              fontSize: '11px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              marginTop: '2px',
+              textDecoration: 'none',
+              width: '100%',
+            }}
+          >
+            <span>🌐</span>
+            <span>Landing Page</span>
+          </NavLink>
+        </div>
 
         <div className="system-status">
           <div className="status-dot" />

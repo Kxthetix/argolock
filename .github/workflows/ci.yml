@@ -33,6 +33,12 @@ jobs:
       - name: Run Vitest Suite
         run: npm test
 
+      - name: Build Production Bundle
+        run: npm run build
+
+      - name: Verify No Mock Data in Production Build
+        run: npm run check:no-mocks
+
   backend:
     name: Backend (Pytest Suite)
     runs-on: ubuntu-latest

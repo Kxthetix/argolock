@@ -82,6 +82,7 @@ class BaseTool(ABC):
         )
 
         stdout, stderr, exit_code = "", "", 0
+        used_fallback = False
         try:
             if self.execution_mode == "docker" and self.docker_image:
                 try:
@@ -91,11 +92,13 @@ class BaseTool(ABC):
                         if fallback_result is not None:
                             logger.warning(f"[{self.name}] Docker execution blocked/failed. Running Python fallback probe.")
                             stdout, stderr, exit_code = fallback_result
+                            used_fallback = True
                 except Exception as docker_exc:
                     fallback_result = self.fallback_run(target, options)
                     if fallback_result is not None:
                         logger.warning(f"[{self.name}] Docker execution error: {docker_exc}. Running Python fallback probe.")
                         stdout, stderr, exit_code = fallback_result
+                        used_fallback = True
                     else:
                         raise
             else:
@@ -113,6 +116,7 @@ class BaseTool(ABC):
                             f"Running Python fallback probe."
                         )
                         stdout, stderr, exit_code = fallback_result
+                        used_fallback = True
                     else:
                         raise FileNotFoundError(
                             f"Tool '{binary}' not found in PATH and no fallback is implemented."
@@ -125,11 +129,13 @@ class BaseTool(ABC):
                             if fallback_result is not None:
                                 logger.warning(f"[{self.name}] Subprocess execution blocked/failed (exit_code={exit_code}). Running Python fallback probe.")
                                 stdout, stderr, exit_code = fallback_result
+                                used_fallback = True
                     except Exception as sub_exc:
                         fallback_result = self.fallback_run(target, options)
                         if fallback_result is not None:
                             logger.warning(f"[{self.name}] Subprocess execution error: {sub_exc}. Running Python fallback probe.")
                             stdout, stderr, exit_code = fallback_result
+                            used_fallback = True
                         else:
                             raise
 
@@ -140,7 +146,15 @@ class BaseTool(ABC):
                 logger.warning(f"{self.name} exited with code {exit_code}: {stderr[:500]}")
 
             result.parsed_data = self.parse_output(stdout, stderr, target)
-            result.status = ToolStatus.COMPLETED
+            if used_fallback:
+                if self.name == "nmap":
+                    result.tool_name = "socket-fallback"
+                    if isinstance(result.parsed_data, dict):
+                        result.parsed_data["tool"] = "socket-fallback"
+                        result.parsed_data["stage_status"] = "partial"
+                result.status = ToolStatus.COMPLETED
+            else:
+                result.status = ToolStatus.COMPLETED
 
         except asyncio.TimeoutError:
             result.status = ToolStatus.FAILED

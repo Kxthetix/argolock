@@ -45,7 +45,7 @@ export function V17HubPage() {
 
   // New Mission form state
   const [showLaunchModal, setShowLaunchModal] = useState(false);
-  const [targetInput, setTargetInput] = useState('https://onlinecourses.nptel.ac.in');
+  const [targetInput, setTargetInput] = useState('');
   const [modeInput, setModeInput] = useState<MissionMode>('ASSESSMENT');
   const [budgetInput, setBudgetInput] = useState(600);
   const [launching, setLaunching] = useState(false);
@@ -65,16 +65,22 @@ export function V17HubPage() {
       setAgentCategories(ag.categories);
       setControlStatus(cp);
 
-      // Load graph & risk for top mission or fallback
-      const scanId = m.length > 0 ? m[0].id : 'sample-scan-1';
-      const [cg, cr, ip] = await Promise.all([
-        api.v17.getCapabilityGraph(scanId).catch(() => null),
-        api.v17.getCyberRisk(scanId).catch(() => null),
-        api.v17.getInvestmentPlan(scanId).catch(() => null),
-      ]);
-      setCapabilityGraph(cg);
-      setCyberRisk(cr);
-      setInvestmentPlan(ip);
+      // Load graph & risk for top mission if exists
+      if (m && m.length > 0) {
+        const scanId = m[0].id;
+        const [cg, cr, ip] = await Promise.all([
+          api.v17.getCapabilityGraph(scanId).catch(() => null),
+          api.v17.getCyberRisk(scanId).catch(() => null),
+          api.v17.getInvestmentPlan(scanId).catch(() => null),
+        ]);
+        setCapabilityGraph(cg);
+        setCyberRisk(cr);
+        setInvestmentPlan(ip);
+      } else {
+        setCapabilityGraph(null);
+        setCyberRisk(null);
+        setInvestmentPlan(null);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -88,14 +94,18 @@ export function V17HubPage() {
 
   const handleLaunchMission = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!targetInput.trim()) {
+      setLaunchError('Please enter a target domain or URL.');
+      return;
+    }
     setLaunching(true);
     setLaunchError(null);
     try {
       const newM = await api.v17.createMission({
-        target: targetInput,
+        target: targetInput.trim(),
         mode: modeInput,
         budget_seconds: Number(budgetInput),
-        scope_whitelist: [targetInput, '*.nptel.ac.in'],
+        scope_whitelist: [targetInput.trim()],
       });
       setMissions(prev => [newM, ...prev]);
       setShowLaunchModal(false);
@@ -212,11 +222,11 @@ export function V17HubPage() {
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
             Cyber Risk Index
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--sev-high)', marginTop: 4 }}>
-            {cyberRisk?.score ?? 68.5} / 100
+          <div style={{ fontSize: 22, fontWeight: 900, color: cyberRisk ? 'var(--sev-high)' : 'var(--text-muted)', marginTop: 4 }}>
+            {cyberRisk ? `${cyberRisk.score} / 100` : 'Not Calculated'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-            Rating: <strong style={{ color: 'var(--sev-high)' }}>{cyberRisk?.rating || 'HIGH'}</strong>
+            Rating: <strong style={{ color: cyberRisk?.rating ? 'var(--sev-high)' : 'var(--text-muted)' }}>{cyberRisk?.rating || 'No Assessment'}</strong>
           </div>
         </div>
 
@@ -224,11 +234,11 @@ export function V17HubPage() {
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
             Remediation ROI Available
           </div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--accent-cyan)', marginTop: 4 }}>
-            -{investmentPlan?.total_risk_reduction ?? 48.0} pts
+          <div style={{ fontSize: 22, fontWeight: 900, color: investmentPlan ? 'var(--accent-cyan)' : 'var(--text-muted)', marginTop: 4 }}>
+            {investmentPlan ? `-${investmentPlan.total_risk_reduction} pts` : 'No Plan'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-            Projected residual: {investmentPlan?.projected_residual_risk ?? 20.5}
+            Projected residual: {investmentPlan ? investmentPlan.projected_residual_risk : 'N/A'}
           </div>
         </div>
       </div>
@@ -517,33 +527,39 @@ export function V17HubPage() {
                 Multi-Variable Cyber Risk Model
               </div>
               <span className="badge badge-high" style={{ fontSize: 12, padding: '4px 10px', fontWeight: 800 }}>
-                CALCULATED SCORE: {cyberRisk?.score ?? 68.5} / 100
+                CALCULATED SCORE: {cyberRisk ? `${cyberRisk.score} / 100` : 'NOT CALCULATED'}
               </span>
             </div>
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 12,
-            }}>
-              <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Severity Factor</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{cyberRisk?.severity_factor ?? 7.5} / 10</div>
+            {cyberRisk ? (
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginTop: 12,
+              }}>
+                <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Severity Factor</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{cyberRisk.severity_factor} / 10</div>
+                </div>
+                <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Exploitability</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--sev-critical)', marginTop: 2 }}>{cyberRisk.exploitability_factor}</div>
+                </div>
+                <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Asset Criticality</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-cyan)', marginTop: 2 }}>{cyberRisk.asset_criticality_factor}x</div>
+                </div>
+                <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Exposure Factor</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--sev-high)', marginTop: 2 }}>{cyberRisk.exposure_factor}x</div>
+                </div>
+                <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confidence</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-green)', marginTop: 2 }}>{(cyberRisk.confidence_factor * 100).toFixed(0)}%</div>
+                </div>
               </div>
-              <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Exploitability</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--sev-critical)', marginTop: 2 }}>{cyberRisk?.exploitability_factor ?? 1.0}</div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-muted)' }}>
+                No active cyber risk calculation available for this target.
               </div>
-              <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Asset Criticality</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-cyan)', marginTop: 2 }}>{cyberRisk?.asset_criticality_factor ?? 1.2}x</div>
-              </div>
-              <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Exposure Factor</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--sev-high)', marginTop: 2 }}>{cyberRisk?.exposure_factor ?? 1.3}x</div>
-              </div>
-              <div style={{ padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confidence</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-green)', marginTop: 2 }}>{(cyberRisk?.confidence_factor ?? 0.95) * 100}%</div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Investment Optimization Table */}
@@ -554,13 +570,14 @@ export function V17HubPage() {
                 Remediation ROI & Budget Investment Sequence
               </div>
               <span className="badge badge-success">
-                Max Risk Reduction: -{investmentPlan?.total_risk_reduction ?? 48.0} pts
+                Max Risk Reduction: {investmentPlan ? `-${investmentPlan.total_risk_reduction} pts` : 'N/A'}
               </span>
             </div>
             <p className="text-secondary" style={{ fontSize: 13, marginBottom: 16 }}>
               Prioritizes fixes by net Return on Investment (Risk Reduction / Cost Index) to maximize risk reduction under any given engineering budget.
             </p>
 
+            {investmentPlan && investmentPlan.actions && investmentPlan.actions.length > 0 ? (
             <div className="table-container">
               <table>
                 <thead>
@@ -626,6 +643,11 @@ export function V17HubPage() {
                 </tbody>
               </table>
             </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-muted)' }}>
+                No remediation plan actions generated yet.
+              </div>
+            )}
           </div>
         </div>
       )}

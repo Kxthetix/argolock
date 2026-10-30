@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 from loguru import logger
 
 from agents.base_agent import BaseAgent
-from reports.pdf_generator import generate_pdf
+from reports.pdf_generator import generate_pdf, validate_and_filter_findings
 
 SYSTEM_PROMPT = """You are a cybersecurity report writer specializing in bug bounty and penetration test reports.
 Write in a professional, clear style suitable for both technical and executive audiences.
@@ -38,6 +38,8 @@ class ReportAgent(BaseAgent):
     ) -> Dict[str, Any]:
         """Generate the full security report."""
         target = scan_doc["scope"]["target"]
+        # Validate and filter findings: reject non-specific/placeholders, record 403 as inconclusive
+        findings = validate_and_filter_findings(findings)
         total = len(findings)
         severities = {
             "critical": sum(1 for f in findings if f.get("severity") == "critical"),
@@ -73,6 +75,8 @@ class ReportAgent(BaseAgent):
             "methodology": self._methodology_text(),
             "findings": findings,
             "scope": scan_doc["scope"],
+            "coverage": scan_doc.get("coverage") or ("none" if total == 0 and not scan_doc.get("target_reachable", False) else "full"),
+            "coverage_summary": scan_doc.get("coverage_summary") or ("none" if total == 0 and not scan_doc.get("target_reachable", False) else "full coverage"),
         }
 
         # Save JSON report
@@ -101,6 +105,9 @@ class ReportAgent(BaseAgent):
             "total_findings": total,
             "risk_score": risk_score,
             "risk_rating": risk_rating,
+            "coverage": report_data["coverage"],
+            "coverage_summary": report_data["coverage_summary"],
+            "findings": findings,
         }
 
     async def _generate_executive_summary(

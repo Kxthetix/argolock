@@ -35,6 +35,27 @@ BLOCKED_TARGETS = {
     "metadata.google.internal",
 }
 
+# ── Non-assessable authenticated third-party SaaS & chat applications ─────────
+NON_ASSESSABLE_DOMAINS = {
+    "chat.openai.com", "chatgpt.com", "openai.com",
+    "slack.com", "app.slack.com",
+    "discord.com", "discord.gg",
+    "teams.microsoft.com", "teams.live.com",
+    "mail.google.com", "accounts.google.com", "drive.google.com",
+    "zoom.us", "web.telegram.org", "web.whatsapp.com",
+    "facebook.com", "instagram.com", "linkedin.com", "x.com", "twitter.com",
+    "claude.ai", "anthropic.com",
+}
+
+
+def is_non_assessable_target(target: str) -> bool:
+    """Return True if target is an authenticated third-party SaaS, chat, or external app."""
+    norm = normalize_target(target).lower()
+    for bad in NON_ASSESSABLE_DOMAINS:
+        if norm == bad or norm.endswith(f".{bad}"):
+            return True
+    return False
+
 
 def normalize_target(target: str) -> str:
     """Strip protocol and trailing slash from target."""
@@ -75,6 +96,10 @@ async def validate_scope(target: str, authorized: bool) -> tuple[bool, str]:
         return False, "User did not confirm authorization to scan this target."
 
     normalized = normalize_target(target)
+
+    # Block non-assessable third-party SaaS/chat services
+    if is_non_assessable_target(normalized):
+        return False, f"Target '{normalized}' is an authenticated third-party SaaS/chat service and is non-assessable under ARGOLOCK rules."
 
     # Block metadata endpoints
     if normalized in BLOCKED_TARGETS:

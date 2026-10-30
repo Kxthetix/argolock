@@ -11,6 +11,8 @@ import { AgentsPage } from './pages/AgentsPage';
 import { ToolStatusPage } from './pages/ToolStatusPage';
 import { VaptValidationCenter } from './pages/VaptValidationCenter';
 import { V17HubPage } from './pages/V17HubPage';
+import { LoginPage } from './pages/LoginPage';
+import { OAuthCallback } from './pages/OAuthCallback';
 
 export default function App() {
   return (
@@ -18,9 +20,10 @@ export default function App() {
       <Routes>
         {/* Landing Page as Homepage */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<OAuthCallback />} />
 
-        {/* Application Workspace Routes (No Auth Barrier) */}
+        {/* Application Workspace Routes */}
         <Route
           path="/*"
           element={

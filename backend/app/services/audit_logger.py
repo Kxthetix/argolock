@@ -10,6 +10,13 @@ from loguru import logger
 from app.models.vapt_models import VAPTAuditRecord
 
 
+async def _maybe_await(val):
+    import asyncio
+    if asyncio.iscoroutine(val) or hasattr(val, "__await__"):
+        return await val
+    return val
+
+
 class AuditLogger:
     """Provides tamper-evident, append-only audit logging for all VAPT activities."""
 
@@ -19,8 +26,12 @@ class AuditLogger:
     def _get_db(self):
         if self._db_getter:
             return self._db_getter()
-        from app.database import get_db
-        return get_db()
+        try:
+            from app.database import get_db
+            return get_db()
+        except Exception:
+            from workers.recon_worker import _get_db_sync
+            return _get_db_sync()
 
     async def log_action(
         self,
@@ -41,10 +52,10 @@ class AuditLogger:
         db = self._get_db()
 
         # Find the latest audit record hash for chaining
-        latest = await db["vapt_audit_logs"].find_one(
+        latest = await _maybe_await(db["vapt_audit_logs"].find_one(
             {},
             sort=[("started_at", -1)]
-        )
+        ))
         prev_hash = latest.get("record_hash") if latest else "GENESIS_ROOT_ARGOLOCK_1.6"
 
         audit = VAPTAuditRecord(
@@ -82,7 +93,7 @@ class AuditLogger:
 
         audit.record_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
-        await db["vapt_audit_logs"].insert_one(audit.model_dump())
+        await _maybe_await(db["vapt_audit_logs"].insert_one(audit.model_dump()))
         logger.info(f"[AuditLogger] Logged VAPT action '{action}' by {actor} on asset {asset_id} (Hash={audit.record_hash[:10]}...)")
         return audit
 
@@ -100,7 +111,10 @@ class AuditLogger:
             query["finding_id"] = finding_id
 
         cursor = db["vapt_audit_logs"].find(query, {"_id": 0}).sort("started_at", -1).limit(limit)
-        docs = await cursor.to_list(length=limit)
+        if hasattr(cursor, "to_list"):
+            docs = await cursor.to_list(length=limit)
+        else:
+            docs = list(cursor)
         return [VAPTAuditRecord(**d) for d in docs]
 
 

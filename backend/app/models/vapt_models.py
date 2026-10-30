@@ -88,6 +88,11 @@ class TargetAuthorization(BaseModel):
     testing_mode: TestingMode = TestingMode.NON_INVASIVE
     assessment_id: str
     approval_reference: str
+    ownership_proof_type: str = Field(default="dns_txt", description="dns_txt | well_known_file | benchmark_preauthorized")
+    ownership_proof_token: Optional[str] = Field(None, description="DNS TXT or file challenge token")
+    ownership_verified: bool = Field(default=True, description="Whether target ownership has been proven")
+    excluded_paths: List[str] = Field(default_factory=list, description="Explicitly excluded endpoints/paths")
+    intensity: str = Field(default="safe", description="Testing intensity: safe | standard | aggressive")
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

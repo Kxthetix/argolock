@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
 from app.database import get_db
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, require_role
 from app.models.vapt_models import (
     TargetAuthorization, TestingApproval, TestingLevel, ApprovalStatus,
     RetestStatus, ValidationStatus
@@ -30,7 +30,7 @@ router = APIRouter()
 @router.post("/authorizations", status_code=201)
 async def create_target_authorization(
     auth_data: TargetAuthorization,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
 ):
     """Register an explicitly authorized asset target into ARGOLOCK inventory."""
     created = await target_auth_service.create_authorization(auth_data)
@@ -58,7 +58,7 @@ async def list_target_authorizations(
 @router.post("/approvals", status_code=201)
 async def request_testing_approval(
     approval: TestingApproval,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
 ):
     """Request operator approval for Level 2 or Level 3 testing."""
     db = get_db()
@@ -97,7 +97,7 @@ async def list_testing_approvals(
 async def approve_testing_request(
     approval_id: str,
     decision_notes: Optional[str] = None,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role("admin", "analyst")),
 ):
     """Operator authorizes a pending testing approval."""
     db = get_db()
@@ -134,7 +134,7 @@ async def approve_testing_request(
 async def reject_testing_request(
     approval_id: str,
     decision_notes: Optional[str] = None,
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
 ):
     """Operator rejects a pending testing approval."""
     db = get_db()

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
@@ -11,6 +12,87 @@ from jinja2 import Environment, FileSystemLoader
 from loguru import logger
 
 from app.config import settings
+
+PLACEHOLDER_TITLE_PATTERNS = [
+    r"^\[verified\]\s*security\s*issue",
+    r"^\[verified\]\s*vulnerability",
+    r"^security\s*issue(\s*discovered)?(\s*\(.*\))?$",
+    r"^vulnerability(\s*discovered)?$",
+    r"^placeholder(\s*issue)?$",
+    r"^test\s*vulnerability$",
+    r"^generic\s*issue$",
+]
+
+
+def is_placeholder_title(title: str) -> bool:
+    """Check if title is generic or placeholder."""
+    if not title or not title.strip() or title.strip().lower() in ("unknown", "n/a", "none", "issue"):
+        return True
+    t_lower = title.strip().lower()
+    for pat in PLACEHOLDER_TITLE_PATTERNS:
+        if re.search(pat, t_lower):
+            return True
+    return False
+
+
+def is_403_or_blocked(f: Dict[str, Any]) -> bool:
+    """Check if finding evidence or response indicates a 403 or blocked probe."""
+    evidence = str(f.get("evidence", ""))
+    desc = str(f.get("description", ""))
+    poc_str = str(f.get("poc", ""))
+    combined = f"{evidence} {desc} {poc_str}".lower()
+    if "403 forbidden" in combined or "status code 403" in combined or "waf blocked" in combined or "access denied" in combined:
+        return True
+    return False
+
+
+def validate_and_filter_findings(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filter and validate findings for report generation:
+    - Rejects findings without a specific title, evidence reference and method.
+    - Removes placeholder titles like '[Verified] Security Issue'.
+    - Removes boilerplate root causes.
+    - Records 403/blocked responses as inconclusive, not exposed.
+    """
+    validated = []
+    for f in findings:
+        title = (f.get("title") or "").strip()
+        # 1. Reject placeholder or non-specific titles
+        if is_placeholder_title(title):
+            logger.info(f"Report generator rejected finding with placeholder title: '{title}'")
+            continue
+
+        # 2. Reject findings without a specific method / tool source
+        method = f.get("tool_source") or f.get("source") or f.get("method") or ""
+        if not method or str(method).lower() in ("unknown", "none", "n/a"):
+            logger.info(f"Report generator rejected finding '{title}' lacking verified method/tool_source")
+            continue
+
+        # 3. Reject findings without an evidence reference
+        evidence = f.get("evidence") or f.get("affected_endpoint") or (f.get("poc") or {}).get("request")
+        if not evidence or str(evidence).strip().lower() in ("unknown", "none", "n/a", ""):
+            logger.info(f"Report generator rejected finding '{title}' lacking evidence reference")
+            continue
+
+        # 4. Handle 403/blocked responses: record as inconclusive, not exposed
+        if is_403_or_blocked(f):
+            f["validation_status"] = "inconclusive"
+            f["status"] = "inconclusive"
+            f["is_exposed"] = False
+            f["exposure_status"] = "inconclusive"
+            logger.info(f"Recorded finding '{title}' at {evidence} as inconclusive (blocked/403) — excluded from exposed findings")
+            continue
+
+        # 5. Clean boilerplate root causes
+        rem = f.get("remediation")
+        if isinstance(rem, dict):
+            rc = rem.get("root_cause")
+            if rc and "The service or configuration lacks security controls or headers, allowing potential abuse" in rc:
+                rem["root_cause"] = None
+
+        validated.append(f)
+
+    return validated
 
 
 def enrich_finding(f: Dict[str, Any]) -> Dict[str, Any]:
@@ -29,7 +111,7 @@ def enrich_finding(f: Dict[str, Any]) -> Dict[str, Any]:
     # Generate remediation if missing
     if "remediation" not in f or not f.get("remediation"):
         rem = {
-            "root_cause": "The service or configuration lacks security controls or headers, allowing potential abuse.",
+            "root_cause": None,
             "fix_steps": [
                 "Review the system configuration settings.",
                 "Apply the recommended security header or configuration option.",
@@ -157,8 +239,10 @@ async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
         except Exception as e:
             logger.warning(f"Could not load findings from DB: {e}")
             
+    # Filter and validate findings (reject non-specific/placeholders, remove boilerplate, handle 403)
+    validated_findings = validate_and_filter_findings(findings)
     # Enrich findings with category, source, confidence, evidence, remediation and compliance
-    enriched_findings = [enrich_finding(dict(f)) for f in findings]
+    enriched_findings = [enrich_finding(dict(f)) for f in validated_findings]
     
     # Recalculate statistics
     stats = report_data.get("statistics") or {}
@@ -333,6 +417,8 @@ async def generate_pdf(report_data: Dict[str, Any], scan_id: str) -> str:
         "services_details": services_details,
         
         "owasp_mapping": owasp_mapping_str,
+        "coverage": report_data.get("coverage") or (scan_doc.get("coverage") if scan_doc else ("none" if total_findings == 0 else "full")),
+        "coverage_summary": report_data.get("coverage_summary") or (scan_doc.get("coverage_summary") if scan_doc else ("none" if total_findings == 0 else "full coverage")),
         "findings": enriched_findings,
         
         "tool_status": tool_status_rows,

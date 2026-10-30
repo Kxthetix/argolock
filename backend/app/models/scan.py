@@ -39,6 +39,7 @@ class ToolStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
+    PARTIAL = "partial"
     FAILED = "failed"
     SKIPPED = "skipped"
 
@@ -47,6 +48,7 @@ class ExploitationStageStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
+    PARTIAL = "partial"
     FAILED = "failed"
     SKIPPED = "skipped"
 
@@ -136,6 +138,8 @@ class ScanDocument(BaseModel):
     info_count: int = 0
     error: Optional[str] = None
     exploitation_stages: Dict[str, ExploitationStageInfo] = Field(default_factory=default_exploitation_stages)
+    coverage: Optional[str] = None
+    coverage_summary: Optional[str] = None
 
     model_config = ConfigDict(use_enum_values=True)
     
