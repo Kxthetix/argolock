@@ -14,6 +14,8 @@ backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+from app.models.scan import StageOutcome, StageStatus, ScanStatus
+from app.services.pipeline_orchestrator import orchestrator, ScanCancelledException
 from workers.celery_app import celery_app
 from workers.recon_worker import _get_db_sync, _update_scan_status, _log, _broadcast
 
@@ -42,6 +44,11 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
             logger.warning(f"Scan {scan_id} not found in database")
             return
 
+        if orchestrator.check_cancellation(scan_id, db=db):
+            _log(scan_id, "warning", "Scan was cancelled before AI analysis.")
+            return {"status": "cancelled", "scan_id": scan_id}
+
+        orchestrator.record_stage_start(scan_id, "ai_analysis", "AI Risk Scoring & Remediation", 75, db=db)
         _update_scan_status(db, scan_id, "ai_analysis", "AI Analysis", 75)
         _log(scan_id, "info", "🤖 Starting AI agent pipeline...")
 
@@ -137,7 +144,20 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
                 }}
             )
 
+        # Record AI analysis stage completion
+        ai_outcome = StageOutcome.FINDINGS_FOUND if finding_dicts else StageOutcome.SCANNED_WITH_NO_FINDINGS
+        orchestrator.record_stage_completion(
+            scan_id=scan_id,
+            stage_key="ai_analysis",
+            outcome=ai_outcome,
+            summary=f"AI Analysis complete: {len(finding_dicts)} findings scored and remediated.",
+            findings_count=len(finding_dicts),
+            tools_executed=["vuln-agent", "risk-agent", "remediation-agent"],
+            db=db,
+        )
+
         # ── Agent 4: Report Generator ─────────────────────────────────────────────
+        orchestrator.record_stage_start(scan_id, "reporting", "Generating Security Report", 93, db=db)
         _update_scan_status(db, scan_id, "reporting", "Generating Report", 93)
         _log(scan_id, "info", "Agent 4: Generating professional security report...", "report-agent")
         
@@ -175,20 +195,33 @@ def run_ai_analysis(self, scan_results_or_scan_id: Any, scan_id: str | None = No
         except Exception as e:
             _log(scan_id, "error", f"Report agent failed: {e}", "report-agent")
 
-        # ── Complete ──────────────────────────────────────────────────────────────
+        orchestrator.record_stage_completion(
+            scan_id=scan_id,
+            stage_key="reporting",
+            outcome=StageOutcome.CLEAN,
+            summary="Professional security report generation complete.",
+            findings_count=len(finding_dicts),
+            tools_executed=["report-agent"],
+            db=db,
+        )
+
+        # ── Final Status Determination ─────────────────────────────────────────────
+        final_status = orchestrator.evaluate_scan_final_status(scan_id, db=db)
+        final_status_str = final_status.value if hasattr(final_status, "value") else str(final_status)
+
         db["scans"].update_one(
             {"id": scan_id},
             {"$set": {
-                "status": "completed",
+                "status": final_status_str,
                 "current_phase": "Complete",
                 "progress_percent": 100,
                 "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             }}
         )
-        _log(scan_id, "success", "🎉 ArgoLock scan complete! View your report in the dashboard.")
+        _log(scan_id, "success", f"🎉 ArgoLock scan complete with status '{final_status_str}'! View your report in the dashboard.")
 
         _broadcast(scan_id, {
-            "type": "progress", "phase": "Complete", "percent": 100, "status": "completed"
+            "type": "progress", "phase": "Complete", "percent": 100, "status": final_status_str
         })
     except Exception as e:
         import os

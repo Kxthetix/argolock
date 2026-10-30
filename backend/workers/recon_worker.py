@@ -15,6 +15,8 @@ backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+from app.models.scan import ToolStatus, StageOutcome, StageStatus, ScanStatus
+from app.services.pipeline_orchestrator import orchestrator, ScanCancelledException
 from workers.celery_app import celery_app
 from tools.nmap_tool import NmapTool
 from tools.subfinder_tool import SubfinderTool
@@ -101,18 +103,28 @@ def run_recon(self, scan_id: str, scan_data: dict):
     """Run all reconnaissance tools against the target."""
     db = _get_db_sync()
     try:
+        if orchestrator.check_cancellation(scan_id):
+            _log(scan_id, "warning", "Scan was cancelled before reconnaissance.")
+            return {"status": "cancelled", "scan_id": scan_id}
+
         target = scan_data["scope"]["target"]
         config = scan_data.get("config", {})
-        is_domain = "." in target and not target.replace(".", "").isdigit()
+        host_part = target.replace("http://", "").replace("https://", "").split("/")[0].split(":")[0]
+        is_domain = "." in host_part and not host_part.replace(".", "").isdigit()
         http_target = target if target.startswith("http") else f"http://{target}"
 
+        orchestrator.record_stage_start(scan_id, "recon", "Reconnaissance", 5, db=db)
         _update_scan_status(db, scan_id, "recon", "Reconnaissance", 5)
         _log(scan_id, "info", f"🔍 Starting reconnaissance on target: {target}")
 
         recon_results = {"target": target}
+        tools_executed = []
 
         # ── Subfinder ─────────────────────────────────────────────────────────────
         if is_domain:
+            if orchestrator.check_cancellation(scan_id, db=db):
+                return {"status": "cancelled", "scan_id": scan_id}
+            orchestrator.record_heartbeat(scan_id, "recon", db=db)
             _update_scan_status(db, scan_id, "recon", "Subdomain Enumeration (Subfinder)", 6)
             _log(scan_id, "info", "Running Subfinder (subdomain enumeration)...", "subfinder")
             try:
@@ -122,12 +134,16 @@ def run_recon(self, scan_id: str, scan_data: dict):
                 _save_tool_result(db, scan_id, "subfinder", result)
                 recon_results["subfinder"] = result.parsed_data or {}
                 count = len(recon_results["subfinder"].get("subdomains", []))
+                tools_executed.append("subfinder")
                 _log(scan_id, "success", f"Subfinder found {count} subdomains", "subfinder")
             except Exception as e:
                 _log(scan_id, "warning", f"Subfinder failed: {e}", "subfinder")
 
         # ── Amass ─────────────────────────────────────────────────────────────────
         if is_domain:
+            if orchestrator.check_cancellation(scan_id):
+                return {"status": "cancelled", "scan_id": scan_id}
+            orchestrator.record_heartbeat(scan_id, "recon")
             _update_scan_status(db, scan_id, "recon", "Subdomain Enumeration (Amass)", 9)
             _log(scan_id, "info", "Running Amass (OSINT subdomain enumeration)...", "amass")
             try:
@@ -137,11 +153,15 @@ def run_recon(self, scan_id: str, scan_data: dict):
                 _save_tool_result(db, scan_id, "amass", result)
                 recon_results["amass"] = result.parsed_data or {}
                 count = len(recon_results["amass"].get("subdomains", []))
+                tools_executed.append("amass")
                 _log(scan_id, "success", f"Amass found {count} subdomains", "amass")
             except Exception as e:
                 _log(scan_id, "warning", f"Amass failed: {e}", "amass")
 
         # ── Naabu ─────────────────────────────────────────────────────────────────
+        if orchestrator.check_cancellation(scan_id):
+            return {"status": "cancelled", "scan_id": scan_id}
+        orchestrator.record_heartbeat(scan_id, "recon")
         _update_scan_status(db, scan_id, "recon", "Port Discovery (Naabu)", 12)
         _log(scan_id, "info", "Running Naabu (fast port discovery)...", "naabu")
         try:
@@ -151,13 +171,18 @@ def run_recon(self, scan_id: str, scan_data: dict):
             _save_tool_result(db, scan_id, "naabu", result)
             recon_results["naabu"] = result.parsed_data or {}
             ports = len(recon_results["naabu"].get("open_ports", []))
+            tools_executed.append("naabu")
             _log(scan_id, "success", f"Naabu found {ports} open ports", "naabu")
         except Exception as e:
             _log(scan_id, "error", f"Naabu failed: {e}", "naabu")
 
         # ── Nmap ──────────────────────────────────────────────────────────────────
+        if orchestrator.check_cancellation(scan_id):
+            return {"status": "cancelled", "scan_id": scan_id}
+        orchestrator.record_heartbeat(scan_id, "recon")
         _update_scan_status(db, scan_id, "recon", "Port Scanning (Nmap)", 16)
         _log(scan_id, "info", "Running Nmap (port scan + service detection)...", "nmap")
+        used_socket_fallback = False
         try:
             nmap = NmapTool()
             nmap_opts = {"ports": config.get("nmap_ports", "top-1000")}
@@ -166,8 +191,9 @@ def run_recon(self, scan_id: str, scan_data: dict):
             _save_tool_result(db, scan_id, "nmap", result)
             recon_results["nmap"] = result.parsed_data or {}
             ports = len(recon_results["nmap"].get("open_ports", []))
-            from app.models.scan import ToolStatus
+            tools_executed.append("nmap")
             if result.tool_name == "socket-fallback" or result.status == ToolStatus.PARTIAL:
+                used_socket_fallback = True
                 recon_results["nmap"]["tool"] = "socket-fallback"
                 recon_results["nmap"]["stage_status"] = "partial"
                 _log(scan_id, "warning", f"Nmap fallback: Python socket-fallback probed {ports} open ports (stage partial)", "socket-fallback")
@@ -181,6 +207,9 @@ def run_recon(self, scan_id: str, scan_data: dict):
             _log(scan_id, "error", f"Nmap failed: {e}", "nmap")
 
         # ── httpx probe ───────────────────────────────────────────────────────────
+        if orchestrator.check_cancellation(scan_id):
+            return {"status": "cancelled", "scan_id": scan_id}
+        orchestrator.record_heartbeat(scan_id, "recon")
         _update_scan_status(db, scan_id, "recon", "HTTP Probing (httpx)", 21)
         _log(scan_id, "info", "Running httpx (HTTP service probe)...", "httpx_probe")
         try:
@@ -190,11 +219,15 @@ def run_recon(self, scan_id: str, scan_data: dict):
             _save_tool_result(db, scan_id, "httpx_probe", result)
             recon_results["httpx_probe"] = result.parsed_data or {}
             live = recon_results["httpx_probe"].get("live_count", 0)
+            tools_executed.append("httpx_probe")
             _log(scan_id, "success", f"httpx probed {live} live endpoints", "httpx_probe")
         except Exception as e:
             _log(scan_id, "warning", f"httpx probe failed: {e}", "httpx_probe")
 
         # ── WhatWeb ───────────────────────────────────────────────────────────────
+        if orchestrator.check_cancellation(scan_id):
+            return {"status": "cancelled", "scan_id": scan_id}
+        orchestrator.record_heartbeat(scan_id, "recon")
         _update_scan_status(db, scan_id, "recon", "Technology Fingerprinting (WhatWeb)", 26)
         _log(scan_id, "info", "Running WhatWeb (technology fingerprinting)...", "whatweb")
         try:
@@ -204,12 +237,42 @@ def run_recon(self, scan_id: str, scan_data: dict):
             _save_tool_result(db, scan_id, "whatweb", result)
             recon_results["whatweb"] = result.parsed_data or {}
             techs = len(recon_results["whatweb"].get("technologies", []))
+            tools_executed.append("whatweb")
             _log(scan_id, "success", f"WhatWeb identified {techs} technologies", "whatweb")
         except Exception as e:
             _log(scan_id, "warning", f"WhatWeb failed: {e}", "whatweb")
 
+        # ── Evaluate Recon Stage Outcome ─────────────────────────────────────────
+        total_open_ports = len(recon_results.get("nmap", {}).get("open_ports", [])) or len(recon_results.get("naabu", {}).get("open_ports", []))
+        live_endpoints = recon_results.get("httpx_probe", {}).get("live_count", 0)
+        target_reachable = bool(total_open_ports > 0 or live_endpoints > 0)
+
+        if not target_reachable:
+            outcome = StageOutcome.UNREACHABLE
+            summary = "Target is unreachable: 0 open ports detected and no live HTTP services responded."
+        elif used_socket_fallback:
+            outcome = StageOutcome.PARTIAL
+            summary = f"Reconnaissance completed with partial socket fallback ({total_open_ports} open ports, {live_endpoints} HTTP endpoints)."
+        else:
+            outcome = StageOutcome.CLEAN
+            summary = f"Reconnaissance complete: {total_open_ports} open ports, {live_endpoints} live HTTP endpoints."
+
+        db["scans"].update_one(
+            {"id": scan_id},
+            {"$set": {"target_reachable": target_reachable}}
+        )
+
+        orchestrator.record_stage_completion(
+            scan_id=scan_id,
+            stage_key="recon",
+            outcome=outcome,
+            summary=summary,
+            tools_executed=tools_executed,
+            db=db,
+        )
+
         _update_scan_status(db, scan_id, "recon", "Recon Complete", 30)
-        _log(scan_id, "info", "✅ Reconnaissance phase complete")
+        _log(scan_id, "info", f"✅ Reconnaissance phase complete: {summary}")
 
         # Trigger next phase (Vulnerability Scanning)
         from workers.scanner_worker import run_scanner
@@ -218,6 +281,14 @@ def run_recon(self, scan_id: str, scan_data: dict):
         return {"status": "success", "scan_id": scan_id, "target": target}
     except Exception as e:
         logger.exception(f"Recon task failed for scan {scan_id}")
+        orchestrator.record_stage_completion(
+            scan_id=scan_id,
+            stage_key="recon",
+            outcome=StageOutcome.ERROR,
+            summary=f"Reconnaissance failed: {e}",
+            error=str(e),
+            db=db,
+        )
         db["scans"].update_one(
             {"id": scan_id},
             {"$set": {"status": "failed", "error": f"Reconnaissance failed: {e}"}},

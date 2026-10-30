@@ -87,7 +87,7 @@ async def create_scan(
         name=request.name or f"Scan of {request.scope.target}",
         scope=request.scope,
         config=request.config,
-        status=ScanStatus.PENDING,
+        status=ScanStatus.QUEUED,
     )
 
     doc_data = _serialize(scan.model_dump())
@@ -109,6 +109,31 @@ async def list_scans(skip: int = 0, limit: int = 20):
     scans = await cursor.to_list(length=limit)
     scans = [_serialize(s) for s in scans]
     return {"scans": scans, "skip": skip, "limit": limit}
+
+
+@router.post("/{scan_id}/cancel")
+async def cancel_scan(
+    scan_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
+):
+    """Cancel an active or queued scan immediately."""
+    db = get_db()
+    scan = await db["scans"].find_one({"id": scan_id})
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    now = datetime.now(timezone.utc)
+    now_str = now.isoformat().replace("+00:00", "Z")
+    await db["scans"].update_one(
+        {"id": scan_id},
+        {"$set": {
+            "status": ScanStatus.CANCELLED.value,
+            "cancelled_at": now_str,
+            "current_phase": "Cancelled by operator",
+        }}
+    )
+    logger.info(f"Scan {scan_id} cancelled by {current_user.get('email', 'operator')}")
+    return {"scan_id": scan_id, "status": "cancelled", "message": "Scan cancelled successfully"}
 
 
 @router.get("/{scan_id}")

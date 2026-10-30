@@ -17,6 +17,7 @@ from loguru import logger
 
 from app.config import settings
 from app.models.scan import ToolResult, ToolStatus
+from app.services.tool_concurrency import tool_limiter
 
 
 class ZAPTool:
@@ -37,22 +38,27 @@ class ZAPTool:
 
     async def _get(self, path: str, params: Dict = None) -> Dict:
         url = f"{self.base_url}/JSON/{path}/"
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(2.0, connect=1.0)) as client:
             resp = await client.get(url, params={"apikey": self.api_key, **(params or {})})
             resp.raise_for_status()
             return resp.json()
 
     async def _action(self, path: str, params: Dict = None) -> Dict:
         url = f"{self.base_url}/JSON/{path}/"
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(2.0, connect=1.0)) as client:
             resp = await client.get(url, params={"apikey": self.api_key, **(params or {})})
             resp.raise_for_status()
             return resp.json()
 
     async def run(self, target: str, options: Optional[Dict[str, Any]] = None) -> ToolResult:
+        async with tool_limiter.acquire(self.name):
+            return await self._run_internal(target, options)
+
+    async def _run_internal(self, target: str, options: Optional[Dict[str, Any]] = None) -> ToolResult:
         result = ToolResult(
             tool_name=self.name,
             status=ToolStatus.RUNNING,
+            tool_version="2.14.0",
             started_at=datetime.now(timezone.utc),
         )
 

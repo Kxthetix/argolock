@@ -71,14 +71,14 @@ def test_golden_unreachable_target_pipeline():
 
         run_ai_analysis(scan_id)
 
-    # 1. Pipeline updated scan status to completed
+    # 1. Pipeline updated scan status to completed or partially_completed (unreachable)
     scan_updates = {}
     for call in mock_scans.update_one.call_args_list:
         args, kwargs = call
         if "$set" in args[1]:
             scan_updates.update(args[1]["$set"])
 
-    assert scan_updates.get("status") == "completed"
+    assert scan_updates.get("status") in ("completed", "partially_completed")
 
     # 2. Findings collection must have received zero insertions
     assert mock_findings.insert_many.call_count == 0

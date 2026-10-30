@@ -29,17 +29,34 @@ export interface CreateScanRequest {
   name?: string;
 }
 
+export interface StageRecord {
+  status: 'pending' | 'queued' | 'running' | 'completed' | 'partially_completed' | 'failed' | 'cancelled' | 'skipped';
+  outcome: 'unreachable' | 'blocked' | 'scanned_with_no_findings' | 'findings_found' | 'partial' | 'error' | 'clean';
+  started_at?: string;
+  completed_at?: string;
+  heartbeat_at?: string;
+  summary?: string;
+  findings_count: number;
+  tools_executed?: string[];
+  error?: string;
+}
+
 export interface Scan {
   id: string;
   name: string;
   scope: ScanScope;
   config: ScanConfig;
-  status: string;
+  status: 'queued' | 'running' | 'partially_completed' | 'completed' | 'failed' | 'cancelled' | string;
   current_phase?: string;
   progress_percent: number;
   created_at: string;
   started_at?: string;
   completed_at?: string;
+  heartbeat_at?: string;
+  cancelled_at?: string;
+  stalled_reason?: string;
+  target_reachable?: boolean;
+  stages?: Record<string, StageRecord>;
   finding_count: number;
   critical_count: number;
   high_count: number;
@@ -414,7 +431,7 @@ export const api = {
         `/scans/${id}/findings${severity ? `?severity=${severity}` : ''}`
       ),
     cancel: (id: string) =>
-      request<{ message: string }>(`/scans/${id}`, { method: 'DELETE' }),
+      request<{ message: string; scan_id?: string; status?: string }>(`/scans/${id}/cancel`, { method: 'POST' }),
   },
 
   findings: {

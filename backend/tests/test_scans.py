@@ -4,10 +4,15 @@ from app.database import get_db
 
 @pytest.mark.asyncio
 async def test_health_check(client):
-    """Verify that the health check endpoint returns 200 and correct payload."""
+    """Verify that the health check endpoint returns 200 and surfaces service and Celery queue health."""
     response = await client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "ArgoLock Backend"}
+    data = response.json()
+    assert data["service"] == "ArgoLock Backend"
+    assert data["status"] in ("ok", "degraded")
+    assert "celery" in data
+    assert "all_routed_queues_active" in data["celery"]
+    assert "missing_queues" in data["celery"]
 
 
 async def _get_auth_headers(client, email="scan_tester@argolock.net"):
@@ -52,7 +57,7 @@ async def test_create_and_get_scan(client, mock_celery_pipeline):
     assert response.status_code in (200, 201)
     data = response.json()
     assert "scan_id" in data
-    assert data["status"] == "pending"
+    assert data["status"] in ("queued", "pending")
     scan_id = data["scan_id"]
     
     # Verify Celery pipeline was enqueued
@@ -69,11 +74,20 @@ async def test_create_and_get_scan(client, mock_celery_pipeline):
     assert response.status_code == 200
     scan_data = response.json()
     assert scan_data["id"] == scan_id
-    assert scan_data["status"] == "pending"
+    assert scan_data["status"] in ("queued", "pending")
     
     # 4. List all scans via API
     response = await client.get("/api/scans", headers=headers)
     assert response.status_code == 200
     list_data = response.json()
     assert len(list_data["scans"]) >= 1
+
+    # 5. Cancel scan via API
+    cancel_resp = await client.post(f"/api/scans/{scan_id}/cancel", headers=headers)
+    assert cancel_resp.status_code == 200
+    assert cancel_resp.json()["status"] == "cancelled"
+
+    # Verify cancelled state in DB
+    cancelled_doc = await db["scans"].find_one({"id": scan_id})
+    assert cancelled_doc["status"] == "cancelled"
     assert any(s["id"] == scan_id for s in list_data["scans"])

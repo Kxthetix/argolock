@@ -15,16 +15,65 @@ def utc_now() -> datetime:
 # ── Enumerations ──────────────────────────────────────────────────────────────
 
 class ScanStatus(str, Enum):
-    PENDING = "pending"
+    QUEUED = "queued"
     RUNNING = "running"
-    RECON = "recon"
-    SCANNING = "scanning"
-    EXPLOITING = "exploiting"
-    AI_ANALYSIS = "ai_analysis"
-    REPORTING = "reporting"
+    PARTIALLY_COMPLETED = "partially_completed"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    # Legacy backward-compatible aliases
+    PENDING = "queued"
+    RECON = "running"
+    SCANNING = "running"
+    EXPLOITING = "running"
+    AI_ANALYSIS = "running"
+    REPORTING = "running"
+
+
+class StageStatus(str, Enum):
+    PENDING = "pending"
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    PARTIALLY_COMPLETED = "partially_completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    SKIPPED = "skipped"
+
+
+class StageOutcome(str, Enum):
+    UNREACHABLE = "unreachable"
+    BLOCKED = "blocked"
+    SCANNED_WITH_NO_FINDINGS = "scanned_with_no_findings"
+    FINDINGS_FOUND = "findings_found"
+    PARTIAL = "partial"
+    ERROR = "error"
+    CLEAN = "clean"
+
+
+class StageRecord(BaseModel):
+    name: str
+    status: StageStatus = StageStatus.PENDING
+    outcome: Optional[StageOutcome] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    heartbeat_at: Optional[datetime] = None
+    summary: Optional[str] = None
+    error: Optional[str] = None
+    findings_count: int = 0
+    tools_executed: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(use_enum_values=True)
+
+
+def default_stages() -> Dict[str, StageRecord]:
+    return {
+        "recon": StageRecord(name="Reconnaissance"),
+        "scanning": StageRecord(name="Vulnerability Scanning"),
+        "exploitation": StageRecord(name="Controlled Exploitation"),
+        "ai_analysis": StageRecord(name="AI Risk Scoring & Remediation"),
+        "reporting": StageRecord(name="Report Generation"),
+    }
 
 
 class ScanPhase(str, Enum):
@@ -79,6 +128,7 @@ def default_exploitation_stages() -> Dict[str, ExploitationStageInfo]:
 class ToolResult(BaseModel):
     tool_name: str
     status: ToolStatus = ToolStatus.PENDING
+    tool_version: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     duration_seconds: Optional[float] = None
@@ -123,12 +173,15 @@ class ScanDocument(BaseModel):
     name: Optional[str] = None
     scope: ScanScope
     config: ScanConfig
-    status: ScanStatus = ScanStatus.PENDING
+    status: ScanStatus = ScanStatus.QUEUED
     current_phase: Optional[str] = None
     progress_percent: int = 0
     created_at: datetime = Field(default_factory=utc_now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    heartbeat_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+    stalled_reason: Optional[str] = None
     tool_results: Dict[str, ToolResult] = Field(default_factory=dict)
     finding_count: int = 0
     critical_count: int = 0
@@ -137,13 +190,15 @@ class ScanDocument(BaseModel):
     low_count: int = 0
     info_count: int = 0
     error: Optional[str] = None
+    stages: Dict[str, StageRecord] = Field(default_factory=default_stages)
     exploitation_stages: Dict[str, ExploitationStageInfo] = Field(default_factory=default_exploitation_stages)
     coverage: Optional[str] = None
     coverage_summary: Optional[str] = None
+    target_reachable: Optional[bool] = None
 
     model_config = ConfigDict(use_enum_values=True)
     
-    @field_serializer("created_at", "started_at", "completed_at")
+    @field_serializer("created_at", "started_at", "completed_at", "heartbeat_at", "cancelled_at")
     def serialize_dt(self, v: Optional[datetime]) -> Optional[str]:
         if v is None:
             return None

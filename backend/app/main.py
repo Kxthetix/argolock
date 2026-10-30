@@ -125,6 +125,21 @@ async def lifespan(app: FastAPI):
             await db["scans"].update_one({"id": s["id"]}, {"$set": {"info_count": info}})
     except Exception as e:
         logger.error(f"Failed to clean up interrupted scans or repair findings on startup: {e}")
+
+    # ── Startup check: Celery routed queue consumers ──────────────────────────
+    try:
+        from app.routers.health import check_celery_queue_consumers
+        celery_check = check_celery_queue_consumers(timeout=0.5)
+        if celery_check["all_routed_queues_active"]:
+            logger.info(f"✅ [Celery Startup] All routed queues have active consumers: {celery_check['active_queues']}")
+        else:
+            missing = celery_check.get("missing_queues", [])
+            logger.warning(
+                f"⚠️ [Celery Startup] Incomplete queue consumers detected! Missing consumers for queues: {missing}. "
+                f"Active queues: {celery_check.get('active_queues', [])}. Tasks routed to missing queues may stall!"
+            )
+    except Exception as e:
+        logger.warning(f"⚠️ [Celery Startup] Could not inspect Celery workers: {e}")
     
     # Start Redis listener task
     listener_task = asyncio.create_task(redis_pubsub_listener())

@@ -97,16 +97,23 @@ async def validate_scope(target: str, authorized: bool) -> tuple[bool, str]:
 
     normalized = normalize_target(target)
 
+    # Extract hostname / IP without port for address checking
+    host = normalized
+    if ":" in normalized and not normalized.startswith("["):
+        host = normalized.split(":")[0]
+    elif normalized.startswith("[") and "]:" in normalized:
+        host = normalized[1:normalized.index("]:")]
+
     # Block non-assessable third-party SaaS/chat services
-    if is_non_assessable_target(normalized):
+    if is_non_assessable_target(host):
         return False, f"Target '{normalized}' is an authenticated third-party SaaS/chat service and is non-assessable under ARGOLOCK rules."
 
     # Block metadata endpoints
-    if normalized in BLOCKED_TARGETS:
+    if host in BLOCKED_TARGETS:
         return False, f"Target '{normalized}' is a blocked cloud metadata endpoint."
 
     # Check if it's an IP
-    ip = is_ip_address(normalized)
+    ip = is_ip_address(host)
     if ip:
         for private_range in PRIVATE_RANGES:
             if ip in private_range:
@@ -116,18 +123,18 @@ async def validate_scope(target: str, authorized: bool) -> tuple[bool, str]:
         return True, f"Public IP {normalized} — authorized."
 
     # Check if it's a CIDR range
-    network = is_ip_network(normalized)
+    network = is_ip_network(host)
     if network:
         if network.num_addresses > 256:
             return False, f"Network range too large ({network.num_addresses} hosts). Max 256 (/24)."
         return True, f"CIDR range {normalized} — authorized."
 
     # It's a domain
-    if not validate_domain(normalized):
+    if not validate_domain(host):
         return False, f"'{normalized}' is not a valid domain name or IP address."
 
     # Safe test targets
-    if normalized in SAFE_TEST_TARGETS or any(normalized.endswith(f".{t}") for t in SAFE_TEST_TARGETS):
+    if host in SAFE_TEST_TARGETS or any(host.endswith(f".{t}") for t in SAFE_TEST_TARGETS):
         return True, f"'{normalized}' is a known safe test target."
 
     # Domain is valid — we trust the authorization flag

@@ -20,6 +20,7 @@ from loguru import logger
 
 from app.config import settings
 from app.models.scan import ToolResult, ToolStatus
+from app.services.tool_concurrency import tool_limiter
 
 
 class ToolExecutionError(Exception):
@@ -72,12 +73,23 @@ class BaseTool(ABC):
                 return True
         return False
 
+    def get_version(self) -> str:
+        """Return the installed or adapter tool version."""
+        if hasattr(self, "version") and self.version:
+            return str(self.version)
+        return "1.7.0"
+
     async def run(self, target: str, options: Optional[Dict[str, Any]] = None) -> ToolResult:
-        """Execute the tool and return a structured ToolResult."""
+        """Execute the tool with concurrency limits and return a standardized ToolResult."""
+        async with tool_limiter.acquire(self.name):
+            return await self._run_internal(target, options)
+
+    async def _run_internal(self, target: str, options: Optional[Dict[str, Any]] = None) -> ToolResult:
         options = options or {}
         result = ToolResult(
             tool_name=self.name,
             status=ToolStatus.RUNNING,
+            tool_version=self.get_version(),
             started_at=datetime.now(timezone.utc),
         )
 
