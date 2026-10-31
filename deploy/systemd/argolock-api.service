@@ -1,0 +1,19 @@
+[Unit]
+Description=ARGOLOCK NET FastAPI API Gateway
+After=network.target mongodb.service redis.service
+
+[Service]
+Type=simple
+User=argolock
+Group=argolock
+WorkingDirectory=/opt/argolock/backend
+EnvironmentFile=/opt/argolock/.env
+ExecStart=/opt/argolock/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from loguru import logger
 
 from app.database import get_db
+from app.config import settings
+from app.services.rate_limiter import rate_limiter
 from app.models.scan import (
     CreateScanRequest, ScanDocument, ScanStatus, ScanPhase
 )
@@ -46,6 +48,10 @@ async def create_scan(
     db = get_db()
     target = request.scope.target
 
+    # ── Rate Limit Verification ───────────────────────────────────────────────
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    rate_limiter.check_rate_limit(f"scan:{user_tenant}", max_requests=settings.rate_limit_per_minute, window_seconds=60)
+
     # ── Scope & Non-Assessable Validation ─────────────────────────────────────
     is_valid, reason = await validate_scope(
         target,
@@ -83,16 +89,18 @@ async def create_scan(
             )
 
     # ── Create scan document ──────────────────────────────────────────────────
+    tenant_id = current_user.get("tenant_id", "tenant_default")
     scan = ScanDocument(
         name=request.name or f"Scan of {request.scope.target}",
         scope=request.scope,
         config=request.config,
         status=ScanStatus.QUEUED,
+        tenant_id=tenant_id,
     )
 
     doc_data = _serialize(scan.model_dump())
     await db["scans"].insert_one(scan.model_dump())
-    logger.info(f"Scan {scan.id} created for target: {request.scope.target}")
+    logger.info(f"Scan {scan.id} created for target: {request.scope.target} (tenant={tenant_id})")
 
     # ── Enqueue Celery pipeline ───────────────────────────────────────────────
     run_full_pipeline.delay(scan.id, scan.model_dump())
@@ -102,10 +110,16 @@ async def create_scan(
 
 
 @router.get("")
-async def list_scans(skip: int = 0, limit: int = 20):
-    """List all scans ordered by creation date."""
+async def list_scans(
+    skip: int = 0,
+    limit: int = 20,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """List all scans for the current tenant ordered by creation date."""
     db = get_db()
-    cursor = db["scans"].find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    tenant_filter = {"$or": [{"tenant_id": user_tenant}, {"tenant_id": {"$exists": False}}]}
+    cursor = db["scans"].find(tenant_filter, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
     scans = await cursor.to_list(length=limit)
     scans = [_serialize(s) for s in scans]
     return {"scans": scans, "skip": skip, "limit": limit}
@@ -116,11 +130,19 @@ async def cancel_scan(
     scan_id: str,
     current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
 ):
-    """Cancel an active or queued scan immediately."""
+    """Cancel an active or queued scan immediately with tenant isolation check."""
     db = get_db()
     scan = await db["scans"].find_one({"id": scan_id})
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
+
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    doc_tenant = scan.get("tenant_id")
+    if doc_tenant and doc_tenant != user_tenant:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tenant access denied: scan belongs to another organization (user tenant: '{user_tenant}')",
+        )
 
     now = datetime.now(timezone.utc)
     now_str = now.isoformat().replace("+00:00", "Z")
@@ -137,12 +159,23 @@ async def cancel_scan(
 
 
 @router.get("/{scan_id}")
-async def get_scan(scan_id: str):
-    """Get a single scan by ID."""
+async def get_scan(
+    scan_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Get a single scan by ID with tenant verification."""
     db = get_db()
     doc = await db["scans"].find_one({"id": scan_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Scan not found")
+
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    doc_tenant = doc.get("tenant_id")
+    if doc_tenant and doc_tenant != user_tenant:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tenant access denied: scan belongs to another organization (user tenant: '{user_tenant}')",
+        )
     return _serialize(doc)
 
 
@@ -152,14 +185,23 @@ async def get_scan_findings(
     severity: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Get findings for a scan, optionally filtered by severity."""
+    """Get findings for a scan, with tenant isolation verification."""
     db = get_db()
 
-    # Verify scan exists
+    # Verify scan exists and belongs to current tenant
     scan = await db["scans"].find_one({"id": scan_id})
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
+
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    doc_tenant = scan.get("tenant_id")
+    if doc_tenant and doc_tenant != user_tenant:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tenant access denied: scan belongs to another organization (user tenant: '{user_tenant}')",
+        )
 
     query: Dict[str, Any] = {"scan_id": scan_id}
     if severity:

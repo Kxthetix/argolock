@@ -1,8 +1,10 @@
 from __future__ import annotations
+from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_db
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
@@ -13,9 +15,11 @@ async def list_findings(
     owasp_category: str = None,
     skip: int = 0,
     limit: int = 100,
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     db = get_db()
-    query = {}
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    query = {"$or": [{"tenant_id": user_tenant}, {"tenant_id": {"$exists": False}}]}
     if severity and severity.strip().lower() not in ("undefined", "null", "all", ""):
         query["severity"] = {"$regex": f"^{severity.strip()}$", "$options": "i"}
     if owasp_category:
@@ -66,9 +70,20 @@ async def list_findings(
 
 
 @router.get("/{finding_id}")
-async def get_finding(finding_id: str):
+async def get_finding(
+    finding_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     db = get_db()
     doc = await db["findings"].find_one({"id": finding_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Finding not found")
+
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    doc_tenant = doc.get("tenant_id")
+    if doc_tenant and doc_tenant != user_tenant:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tenant access denied: finding belongs to another organization (user tenant: '{user_tenant}')",
+        )
     return doc

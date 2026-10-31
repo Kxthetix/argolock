@@ -28,6 +28,7 @@ from app.services.security_control_plane import SecurityControlPlane
 from app.services.remediation_retest_engine import remediation_retest_engine
 from app.services.trend_service import trend_service
 from app.services.business_questions_service import business_questions_service
+from app.services.alerting_service import alerting_service
 
 router = APIRouter(prefix="/api/v1", tags=["v1.7"])
 
@@ -397,3 +398,37 @@ async def get_control_plane_status():
         "destructive_pattern_count": len(SecurityControlPlane.DESTRUCTIVE_PATTERNS),
         "status": "active_enforcing",
     }
+
+
+# ─── 11. Observability & Alerting ───────────────────────────────────────────────
+
+@router.get("/observability/metrics")
+async def get_observability_metrics(tenant_id: Optional[str] = None):
+    """Retrieve live operational metrics, active scan telemetry, and open security alerts."""
+    return await alerting_service.get_observability_metrics(tenant_id=tenant_id)
+
+
+@router.get("/observability/alerts")
+async def list_security_alerts(
+    tenant_id: Optional[str] = None,
+    severity: Optional[str] = None,
+    acknowledged: Optional[bool] = None,
+    limit: int = 50,
+):
+    """List security and operational alerts."""
+    alerts = await alerting_service.list_alerts(
+        tenant_id=tenant_id,
+        severity=severity,
+        acknowledged=acknowledged,
+        limit=limit,
+    )
+    return [a.model_dump() for a in alerts]
+
+
+@router.post("/observability/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(alert_id: str, acknowledged_by: str = "operator@argolock.net"):
+    """Mark an alert as acknowledged by an operator."""
+    res = await alerting_service.acknowledge_alert(alert_id, acknowledged_by=acknowledged_by)
+    if not res:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return res.model_dump()

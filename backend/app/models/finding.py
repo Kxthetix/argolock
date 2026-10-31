@@ -93,6 +93,7 @@ class AnalystReviewEntry(BaseModel):
 class Finding(BaseModel):
     """A single vulnerability finding."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str = Field(default="tenant_default", description="Tenant isolation identifier")
     scan_id: str
     title: str
     description: str

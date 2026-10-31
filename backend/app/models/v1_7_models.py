@@ -234,6 +234,7 @@ class RemediationTaskStatus(str, Enum):
 
 class RemediationTask(BaseModel):
     id: str = Field(default_factory=lambda: f"task-{uuid.uuid4().hex[:8]}")
+    tenant_id: str = Field(default="tenant_default", description="Tenant isolation identifier")
     finding_id: str
     scan_id: str
     title: str
@@ -284,6 +285,7 @@ class MissionMode(str, Enum):
 
 class Mission(BaseModel):
     id: str = Field(default_factory=lambda: f"msn-{uuid.uuid4().hex[:8]}")
+    tenant_id: str = Field(default="tenant_default", description="Tenant isolation identifier")
     name: str
     target: str
     mode: MissionMode = MissionMode.ASSESSMENT

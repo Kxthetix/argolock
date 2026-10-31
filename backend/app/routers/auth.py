@@ -15,6 +15,7 @@ from pydantic import BaseModel, EmailStr, Field
 from app.config import settings
 from app.database import get_db
 from app.models.user import UserDocument
+from app.services.rate_limiter import rate_limiter
 from app.utils.crypto import hash_password, verify_password
 from app.utils.otp import generate_otp, store_otp, verify_otp, send_otp_email
 
@@ -34,6 +35,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=6, description="User password (min 6 characters)")
     role: Optional[str] = Field("viewer", description="Role: admin | analyst | viewer")
+    tenant_id: Optional[str] = Field("tenant_default", description="Tenant or organization identifier")
 
 
 class OTPSendRequest(BaseModel):
@@ -53,11 +55,11 @@ VALID_ROLES = {"admin", "analyst", "viewer"}
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-def _create_jwt(email: str, role: str = "viewer") -> str:
+def _create_jwt(email: str, role: str = "viewer", tenant_id: str = "tenant_default") -> str:
     """Create a JWT access token that expires in 7 days."""
     token_expiry = datetime.now(timezone.utc) + timedelta(days=7)
     return jwt.encode(
-        {"sub": email, "role": role, "exp": token_expiry},
+        {"sub": email, "role": role, "tenant_id": tenant_id, "exp": token_expiry},
         settings.secret_key,
         algorithm="HS256",
     )
@@ -112,7 +114,24 @@ async def get_current_user(
     user.pop("_id", None)
     user.pop("password_hash", None)
     user["role"] = user.get("role") or payload.get("role") or "analyst"
+    user["tenant_id"] = user.get("tenant_id") or payload.get("tenant_id") or "tenant_default"
     return user
+
+
+def verify_tenant_access(resource_tenant_id: str | None, current_user: Dict[str, Any]) -> None:
+    """Ensure current_user is strictly isolated to their assigned tenant_id."""
+    user_tenant = current_user.get("tenant_id", "tenant_default")
+    if not resource_tenant_id:
+        return
+    if resource_tenant_id != user_tenant:
+        logger.warning(
+            f"🚫 [TENANT_ISOLATION] Access violation: User {current_user.get('email')} "
+            f"(tenant={user_tenant}) attempted cross-tenant access to resource (tenant={resource_tenant_id})"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Tenant access denied: cross-tenant access prohibited (user tenant: '{user_tenant}')",
+        )
 
 
 def require_role(*allowed_roles: str):
@@ -142,6 +161,9 @@ async def login(request: LoginRequest):
     email = request.email.strip().lower()
     password = request.password
 
+    # Rate limiting on authentication attempts
+    rate_limiter.check_rate_limit(f"auth:{email}", max_requests=10, window_seconds=60)
+
     db = get_db()
     user = await db["users"].find_one({"email": email})
 
@@ -150,9 +172,10 @@ async def login(request: LoginRequest):
         hashed = hash_password(password)
         user_count = await db["users"].count_documents({})
         initial_role = "admin" if (user_count == 0 or email.startswith("admin@")) else "analyst"
-        user_doc = UserDocument(email=email, password_hash=hashed, role=initial_role)
+        tenant_id = "tenant_default"
+        user_doc = UserDocument(email=email, password_hash=hashed, role=initial_role, tenant_id=tenant_id)
         await db["users"].insert_one(user_doc.model_dump())
-        logger.info(f"👤 [AUTH] Registered new user: {email} with role {initial_role}")
+        logger.info(f"👤 [AUTH] Registered new user: {email} with role {initial_role} (tenant={tenant_id})")
         role = initial_role
     else:
         # Verify credentials for existing user
@@ -163,9 +186,16 @@ async def login(request: LoginRequest):
                 detail="Invalid email or password",
             )
         role = user.get("role") or "analyst"
+        tenant_id = user.get("tenant_id") or "tenant_default"
 
-    access_token = _create_jwt(email, role)
-    return {"access_token": access_token, "token_type": "bearer", "email": email, "role": role}
+    access_token = _create_jwt(email, role, tenant_id)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "email": email,
+        "role": role,
+        "tenant_id": tenant_id,
+    }
 
 
 @router.post("/register")
@@ -185,19 +215,28 @@ async def register(request: RegisterRequest):
     if requested_role not in VALID_ROLES:
         requested_role = "viewer"
 
+    tenant_id = (request.tenant_id or "tenant_default").strip()
+
     hashed = hash_password(request.password)
     user_doc = UserDocument(
         email=email,
         password_hash=hashed,
         name=request.name.strip(),
         role=requested_role,
+        tenant_id=tenant_id,
         auth_provider="email",
     )
     await db["users"].insert_one(user_doc.model_dump())
-    logger.info(f"👤 [AUTH] Registered new user via /register: {email} (role: {requested_role})")
+    logger.info(f"👤 [AUTH] Registered new user via /register: {email} (role: {requested_role}, tenant={tenant_id})")
 
-    access_token = _create_jwt(email, requested_role)
-    return {"access_token": access_token, "token_type": "bearer", "email": email, "role": requested_role}
+    access_token = _create_jwt(email, requested_role, tenant_id)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "email": email,
+        "role": requested_role,
+        "tenant_id": tenant_id,
+    }
 
 
 # ── Endpoints: OTP ───────────────────────────────────────────────────────────

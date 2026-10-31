@@ -76,6 +76,7 @@ class ExploitabilityLevel(str, Enum):
 class TargetAuthorization(BaseModel):
     """Explicit asset scope and authorization record."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str = Field(default="tenant_default", description="Tenant isolation identifier")
     asset_id: str
     hostname_or_ip: str
     owner: str
@@ -111,6 +112,7 @@ class TestingApproval(BaseModel):
     """Operator approval record required for Level 2 & 3 validation."""
     __test__ = False
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str = Field(default="tenant_default", description="Tenant isolation identifier")
     assessment_id: str
     finding_id: str
     asset_id: str

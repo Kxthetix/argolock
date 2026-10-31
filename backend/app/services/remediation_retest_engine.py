@@ -108,12 +108,14 @@ class RemediationRetestEngine:
         assignee: Optional[str] = None,
         priority: Optional[RemediationPriority] = None,
         sla_days: int = 14,
+        tenant_id: str = "tenant_default",
     ) -> RemediationTask:
         """Create a tracked RemediationTask for an identified finding."""
         db = self._get_db()
         f_id = finding.get("id") or str(uuid.uuid4())
         s_id = scan_id or finding.get("scan_id") or "scan-unknown"
         sev = (finding.get("severity") or "medium").lower()
+        effective_tenant = tenant_id or finding.get("tenant_id") or "tenant_default"
 
         # Determine priority
         if not priority:
@@ -152,6 +154,7 @@ class RemediationRetestEngine:
         task = RemediationTask(
             finding_id=f_id,
             scan_id=s_id,
+            tenant_id=effective_tenant,
             title=f"Remediate {finding.get('title', 'Vulnerability')}",
             description=finding.get("description") or f"Fix identified {sev} flaw on {finding.get('affected_endpoint', 'target')}",
             status=RemediationTaskStatus.PENDING,
@@ -175,15 +178,18 @@ class RemediationRetestEngine:
         self,
         scan_id: Optional[str] = None,
         status: Optional[str] = None,
+        tenant_id: Optional[str] = None,
         limit: int = 50,
     ) -> List[RemediationTask]:
-        """Query stored remediation tasks."""
+        """Query stored remediation tasks with optional tenant isolation."""
         db = self._get_db()
         query: Dict[str, Any] = {}
         if scan_id:
             query["scan_id"] = scan_id
         if status:
             query["status"] = status
+        if tenant_id:
+            query["$or"] = [{"tenant_id": tenant_id}, {"tenant_id": {"$exists": False}}]
 
         cursor = db["remediation_tasks"].find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
         docs = await cursor.to_list(length=limit)

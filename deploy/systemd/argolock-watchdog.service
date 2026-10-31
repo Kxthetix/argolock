@@ -1,0 +1,18 @@
+[Unit]
+Description=ARGOLOCK NET Celery Pipeline Stall Watchdog Daemon
+After=network.target redis.service mongodb.service
+
+[Service]
+Type=simple
+User=argolock
+Group=argolock
+WorkingDirectory=/opt/argolock/backend
+EnvironmentFile=/opt/argolock/.env
+ExecStart=/opt/argolock/backend/venv/bin/python -m workers.stall_watchdog
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

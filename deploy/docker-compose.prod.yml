@@ -1,0 +1,163 @@
+version: '3.9'
+
+# ==============================================================================
+# ARGOLOCK NET — Production Hardened Compose Stack
+# Multi-tenant isolation, non-root execution, restart resilience, and healthchecks
+# ==============================================================================
+
+networks:
+  argolock-internal:
+    driver: bridge
+    internal: true
+  argolock-public:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+  reports_data:
+  backups_data:
+
+services:
+  # ── MongoDB Database ────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: argolock-mongodb
+    restart: always
+    user: "999:999"
+    networks:
+      - argolock-internal
+    volumes:
+      - mongodb_data:/data/db
+      - backups_data:/backups
+    environment:
+      MONGO_INITDB_DATABASE: argolock
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis Broker & State Store ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: argolock-redis
+    restart: always
+    user: "999:999"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-argolock_redis_secure_pass}
+    networks:
+      - argolock-internal
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-argolock_redis_secure_pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Application Server ──────────────────────────────────────────────
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: argolock-api
+    restart: always
+    user: "1000:1000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    networks:
+      - argolock-internal
+      - argolock-public
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - reports_data:/tmp/argolock_reports
+      - backups_data:/app/backups
+    env_file:
+      - ../.env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── Reconnaissance Queue Worker ─────────────────────────────────────────────
+  worker-recon:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: argolock-worker-recon
+    restart: always
+    command: celery -A workers.celery_app worker -Q recon,default -c 2 --loglevel=info -n recon@%h
+    networks:
+      - argolock-internal
+      - argolock-public
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
+
+  # ── Scanner Queue Worker ────────────────────────────────────────────────────
+  worker-scanner:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: argolock-worker-scanner
+    restart: always
+    command: celery -A workers.celery_app worker -Q scanner -c 2 --loglevel=info -n scanner@%h
+    networks:
+      - argolock-internal
+      - argolock-public
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
+
+  # ── Exploit & AI Pipeline Worker ────────────────────────────────────────────
+  worker-exploit:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: argolock-worker-exploit
+    restart: always
+    command: celery -A workers.celery_app worker -Q ai,exploit -c 2 --loglevel=info -n exploit@%h
+    networks:
+      - argolock-internal
+      - argolock-public
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - reports_data:/tmp/argolock_reports
+    env_file:
+      - ../.env
+
+  # ── Pipeline Watchdog Daemon ────────────────────────────────────────────────
+  watchdog:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: argolock-watchdog
+    restart: always
+    command: python -m workers.stall_watchdog
+    networks:
+      - argolock-internal
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../.env
