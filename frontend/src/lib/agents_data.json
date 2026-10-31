@@ -41,7 +41,7 @@
         "risk-scoring",
         "asset-correlator"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "surface_ranking",
         "criticality_scoring"
@@ -58,7 +58,7 @@
         "knowledge-base",
         "mitre-mapper"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "entity_correlation",
         "cve_mapping"
@@ -74,7 +74,7 @@
       "tools": [
         "diff-engine"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "coverage_audit",
         "blindspot_detection"
@@ -111,7 +111,7 @@
         "massdns",
         "dig"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "dns_records",
         "takeover_detection",
@@ -167,7 +167,7 @@
         "custom-crawler",
         "graphql-tools"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "api_introspection",
         "swagger_parsing",
@@ -185,7 +185,7 @@
         "cloud-sdk",
         "trivy"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "storage_exposure",
         "cloud_metadata",
@@ -203,7 +203,7 @@
         "whatweb",
         "wappalyzer"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "tech_fingerprint",
         "version_detection"
@@ -220,7 +220,7 @@
         "nuclei",
         "zap"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "session_hijack",
         "mfa_bypass",
@@ -238,7 +238,7 @@
         "zap",
         "custom-replayer"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "idor_check",
         "tenant_isolation_test"
@@ -288,7 +288,7 @@
       "tools": [
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "nosql_operator_probe"
       ],
@@ -304,7 +304,7 @@
         "nuclei",
         "interactsh"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "ssrf_oob_check",
         "cloud_metadata_probe"
@@ -320,7 +320,7 @@
       "tools": [
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "template_injection_math_probe"
       ],
@@ -335,7 +335,7 @@
       "tools": [
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "xxe_file_disclosure",
         "xml_entity_test"
@@ -351,7 +351,7 @@
       "tools": [
         "zap"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "csrf_token_bypass",
         "samesite_audit"
@@ -367,7 +367,7 @@
       "tools": [
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "cors_misconfiguration_check"
       ],
@@ -382,7 +382,7 @@
       "tools": [
         "custom-client"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "oauth_redirect_leak",
         "token_validation"
@@ -398,7 +398,7 @@
       "tools": [
         "graphql-tools"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "graphql_introspection",
         "depth_limit_audit"
@@ -414,7 +414,7 @@
       "tools": [
         "custom-client"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "mime_bypass",
         "executable_upload_test"
@@ -430,7 +430,7 @@
       "tools": [
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "dot_dot_slash_probe",
         "null_byte_test"
@@ -447,7 +447,7 @@
         "commix",
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "command_sep_probe",
         "time_delay_verification"
@@ -463,7 +463,7 @@
       "tools": [
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "insecure_deserialization_probe"
       ],
@@ -478,7 +478,7 @@
       "tools": [
         "nuclei"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "unvalidated_redirect_check"
       ],
@@ -493,7 +493,7 @@
       "tools": [
         "custom-replayer"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "logic_workflow_bypass",
         "limit_tampering"
@@ -509,7 +509,7 @@
       "tools": [
         "custom-concurrency"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "race_overrun_test"
       ],
@@ -525,7 +525,7 @@
         "nmap",
         "sslscan"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "tls_version_audit",
         "weak_cipher_detection"
@@ -542,7 +542,7 @@
         "nikto",
         "httpx"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "debug_endpoint_audit",
         "banner_disclosure"
@@ -558,7 +558,7 @@
       "tools": [
         "nmap"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "unauth_db_detection",
         "internal_port_exposure"
@@ -574,7 +574,7 @@
       "tools": [
         "trivy"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "docker_socket_audit",
         "container_breakout_check"
@@ -590,7 +590,7 @@
       "tools": [
         "kube-bench"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "k8s_api_audit",
         "kubelet_check"
@@ -607,7 +607,7 @@
         "prowler",
         "trivy"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "cloud_bucket_policy",
         "iam_overgrant_check"
@@ -623,7 +623,7 @@
       "tools": [
         "semgrep"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "architecture_mapping",
         "language_detection"
@@ -639,7 +639,7 @@
       "tools": [
         "semgrep"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "route_extraction",
         "controller_discovery"
@@ -656,7 +656,7 @@
         "semgrep",
         "codeql"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "source_sink_tracking"
       ],
@@ -671,7 +671,7 @@
       "tools": [
         "codeql"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "taint_analysis"
       ],
@@ -687,7 +687,7 @@
         "gitleaks",
         "trivy"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "secret_detection",
         "entropy_analysis"
@@ -703,7 +703,7 @@
       "tools": [
         "trivy"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "sca_audit",
         "cve_lookup"
@@ -720,7 +720,7 @@
         "semgrep",
         "httpx"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "sast_dast_correlation"
       ],
@@ -766,7 +766,7 @@
       "tools": [
         "playwright"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "dom_xss_verification",
         "screenshot_capture"
@@ -782,7 +782,7 @@
       "tools": [
         "state-checker"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "state_cleanup",
         "idempotency_verification"
@@ -798,7 +798,7 @@
       "tools": [
         "capability-engine"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "capability_derivation"
       ],
@@ -813,7 +813,7 @@
       "tools": [
         "graph-builder"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "attack_chaining",
         "path_analysis"
@@ -845,7 +845,7 @@
       "tools": [
         "cvss-calculator"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "severity_calibration"
       ],
@@ -860,7 +860,7 @@
       "tools": [
         "dedup-engine"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "deduplication"
       ],
@@ -905,7 +905,7 @@
       "tools": [
         "mitre-mapper"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "mitre_mapping"
       ],
@@ -966,7 +966,7 @@
       "tools": [
         "llm-narrative"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "executive_narrative"
       ],
@@ -981,7 +981,7 @@
       "tools": [
         "compliance-engine"
       ],
-      "status": "active",
+      "status": "planned",
       "capabilities": [
         "compliance_crosswalk"
       ],

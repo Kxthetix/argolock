@@ -21,6 +21,7 @@ from loguru import logger
 from app.config import settings
 from app.models.scan import ToolResult, ToolStatus
 from app.services.tool_concurrency import tool_limiter
+from app.services.container_sandbox import container_sandbox_manager, EgressBlockedException
 
 
 class ToolExecutionError(Exception):
@@ -172,6 +173,10 @@ class BaseTool(ABC):
             result.status = ToolStatus.FAILED
             result.error = f"Tool timed out after {self.timeout}s"
             logger.error(f"{self.name} timed out for target {target}")
+        except EgressBlockedException as egress_exc:
+            result.status = ToolStatus.FAILED
+            result.error = f"Egress blocked by container sandbox: {egress_exc}"
+            logger.error(f"[{self.name}] {result.error}")
         except Exception as exc:
             result.status = ToolStatus.FAILED
             result.error = str(exc)
@@ -186,7 +191,12 @@ class BaseTool(ABC):
     async def _run_docker(
         self, target: str, options: Dict[str, Any]
     ) -> tuple[str, str, int]:
-        """Run tool inside a Docker container."""
+        """Run tool inside a Docker container with pre-execution egress validation."""
+        mission_id = options.get("mission_id") or options.get("scan_id") or f"ephemeral-{int(time.time())}"
+        scope = options.get("authorized_scope") or [target, "127.0.0.1", "localhost", "scanme.nmap.org"]
+        sandbox = container_sandbox_manager.get_or_create(mission_id, authorized_scope=scope)
+        sandbox.validate_egress(target)
+
         tool_cmd = self.build_command(target, options)
         docker_cmd = [
             "docker", "run", "--rm",
@@ -202,10 +212,15 @@ class BaseTool(ABC):
     async def _run_subprocess(
         self, target: str, options: Dict[str, Any]
     ) -> tuple[str, str, int]:
-        """Run tool directly as a subprocess."""
+        """Run tool inside the ephemeral per-mission container sandbox."""
         cmd = self.build_command(target, options)
-        logger.debug(f"[{self.name}] Subprocess command: {' '.join(cmd)}")
-        return await self._execute(cmd)
+        logger.debug(f"[{self.name}] Sandboxed container command: {' '.join(cmd)}")
+        mission_id = options.get("mission_id") or options.get("scan_id") or f"ephemeral-{int(time.time())}"
+        scope = options.get("authorized_scope")
+        if not scope:
+            scope = [target, "127.0.0.1", "localhost", "scanme.nmap.org"]
+        sandbox = container_sandbox_manager.get_or_create(mission_id, authorized_scope=scope)
+        return await sandbox.execute_tool(cmd, target, timeout=self.timeout)
 
     async def _execute(self, cmd: List[str]) -> tuple[str, str, int]:
         """Execute a command asynchronously with timeout."""

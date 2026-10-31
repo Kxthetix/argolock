@@ -139,3 +139,42 @@ async def validate_scope(target: str, authorized: bool) -> tuple[bool, str]:
 
     # Domain is valid — we trust the authorization flag
     return True, f"Domain '{normalized}' — user authorized scan."
+
+
+def is_target_in_scope(target: str, allowed_scopes: list[str]) -> bool:
+    """Check if target host or IP is contained within allowed scope whitelist."""
+    norm_target = normalize_target(target).lower()
+    if ":" in norm_target and not norm_target.startswith("["):
+        norm_target = norm_target.split(":")[0]
+    elif norm_target.startswith("[") and "]:" in norm_target:
+        norm_target = norm_target[1:norm_target.index("]:")]
+
+    target_ip = is_ip_address(norm_target)
+
+    for sc in allowed_scopes:
+        sc_norm = normalize_target(sc).lower()
+        if ":" in sc_norm and not sc_norm.startswith("["):
+            sc_norm = sc_norm.split(":")[0]
+
+        if norm_target == sc_norm:
+            return True
+
+        if target_ip:
+            net = is_ip_network(sc_norm)
+            if net and target_ip in net:
+                return True
+        else:
+            if norm_target == sc_norm or norm_target.endswith(f".{sc_norm}"):
+                return True
+
+    return False
+
+
+class ScopeValidator:
+    """Helper wrapper for scope validation."""
+    @staticmethod
+    def is_target_in_scope(target: str, allowed_scopes: list[str]) -> bool:
+        return is_target_in_scope(target, allowed_scopes)
+
+
+scope_validator = ScopeValidator()

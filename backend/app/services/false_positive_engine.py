@@ -66,12 +66,11 @@ class FalsePositiveEngine:
 
         # 4. Status 401 / 403 (Proper access control blocks unauthenticated access)
         if status_code in (401, 403):
-            if any(term in title_lower for term in ["unauthenticated", "open redirect", "anonymous access", "public"]):
-                return (
-                    ValidationStatus.NOT_EXPLOITABLE,
-                    0.88,
-                    f"Access Denied: Endpoint correctly enforced authorization with HTTP {status_code}."
-                )
+            return (
+                ValidationStatus.NOT_EXPLOITABLE,
+                0.88,
+                f"Access Denied: Endpoint correctly enforced authorization with HTTP {status_code}."
+            )
 
         # 5. CORS Misconfiguration check
         if "cors" in title_lower:

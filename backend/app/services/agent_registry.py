@@ -5,8 +5,26 @@ Agents are defined as lightweight logical profiles dispatched through common wor
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Set
+from pydantic import BaseModel, Field, model_validator
+
+
+ACTIVE_AGENT_CODES: Set[str] = {
+    "mission-controller",
+    "asset-discovery",
+    "network-discovery",
+    "web-surface",
+    "xss",
+    "sqli",
+    "exploit-planner",
+    "poc-builder",
+    "devil-advocate",
+    "evidence-validator",
+    "risk-analyst",
+    "remediation-prioritizer",
+    "investment-optimizer",
+    "report-writer",
+}
 
 
 class AgentDefinition(BaseModel):
@@ -16,9 +34,20 @@ class AgentDefinition(BaseModel):
     category: str                 # Orchestration, Recon, Web/API, Infrastructure, Code, Exploitation, Validation, Risk, Reporting
     description: str
     tools: List[str] = Field(default_factory=list)
-    status: str = "active"        # active, idle, running, standby
+    status: str = "planned"       # active, planned
     capabilities: List[str] = Field(default_factory=list)
     confidence_weight: float = 1.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def reconcile_status(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            code = data.get("code")
+            if code in ACTIVE_AGENT_CODES:
+                data["status"] = "active"
+            else:
+                data["status"] = "planned"
+        return data
 
 
 class AgentRegistry:

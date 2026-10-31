@@ -28,9 +28,43 @@ class BaseAgent:
             return prompt_path.read_text(encoding="utf-8")
         return ""
 
-    async def _complete(self, prompt: str, system: Optional[str] = None) -> str:
-        """Call the provider with retry logic."""
-        return await self.provider.complete_with_retry(prompt=prompt, system=system)
+    async def _complete(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        mission_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+    ) -> str:
+        """Call the provider with retry logic and agent runtime guardrails."""
+        eff_mission = mission_id or "default"
+        eff_agent = agent_id or getattr(self, "agent_code", self.__class__.__name__)
+
+        from app.services.agent_guardrails import agent_guardrails
+        # Guardrail 1: Turn limit check
+        agent_guardrails.check_turn_limit(eff_mission, eff_agent, raise_on_exceed=True)
+        # Guardrail 2: Budget check
+        agent_guardrails.check_budget(eff_mission, raise_on_exceed=True)
+
+        agent_guardrails.record_turn(eff_mission, eff_agent)
+        response = await self.provider.complete_with_retry(prompt=prompt, system=system)
+
+        # Estimate token usage (~4 chars per token) and record usage
+        prompt_tokens = max(1, len(prompt) // 4)
+        completion_tokens = max(1, len(response) // 4)
+        agent_guardrails.record_usage(
+            eff_mission,
+            prompt_tokens,
+            completion_tokens,
+            model_name=getattr(self.provider, "model", "default")
+        )
+
+        # Guardrail 3: Reflector check for non-action replies
+        if getattr(self, "expects_action_proposals", False) and agent_guardrails.is_non_action_reply(response):
+            steer = agent_guardrails.generate_reflection(eff_agent, response)
+            logger.info(f"[BaseAgent] Reflector steering non-action reply from agent '{eff_agent}'")
+            response = await self.provider.complete_with_retry(prompt=f"{prompt}\n\n{steer}", system=system)
+
+        return response
 
     def _extract_json(self, text: str) -> list | dict:
         """Extract JSON from LLM response, handling markdown code blocks."""
