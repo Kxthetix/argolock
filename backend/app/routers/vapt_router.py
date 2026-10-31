@@ -306,7 +306,7 @@ async def get_mitre_mappings(
     cursor = db["findings"].find({"confirmed": True}, {"_id": 0}).limit(50)
     confirmed = await cursor.to_list(length=50)
 
-    mappings = [attack_path_engine.map_mitre(f).model_dump() for f in confirmed]
+    mappings = [m.model_dump() for f in confirmed if (m := attack_path_engine.map_mitre(f)) is not None]
     return mappings
 
 

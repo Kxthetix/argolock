@@ -81,8 +81,36 @@ MITRE_ATTACK_DB: Dict[str, Dict[str, str]] = {
 class AttackPathEngine:
     """Builds risk relationship graphs and maps confirmed vulnerabilities to MITRE ATT&CK tactics."""
 
-    def map_mitre(self, finding: Dict[str, Any]) -> MITREMapping:
-        """Map finding to standard MITRE ATT&CK technique."""
+    def map_mitre(self, finding: Dict[str, Any], require_evidence: bool = False) -> Optional[MITREMapping]:
+        """
+        Map finding to standard MITRE ATT&CK technique only where evidence supports it.
+        Rejects HYPOTHESIS, KILLED, or BLOCKED findings, and rejects findings without
+        technical proof when require_evidence is True.
+        """
+        # 1. Reject speculative or unverified source types
+        source_type = str(finding.get("source_type", "")).upper()
+        if source_type == "HYPOTHESIS":
+            return None
+
+        # 2. Reject killed or blocked lifecycle states
+        lifecycle = str(finding.get("lifecycle_state", "")).upper()
+        if lifecycle in ("KILLED", "BLOCKED"):
+            return None
+
+        val_status = str(finding.get("validation_status", "")).lower()
+        if val_status in ("false_positive", "not_exploitable"):
+            return None
+
+        # 3. Check for technical proof (evidence_id, evidence_hash, evidence, or poc)
+        has_proof = bool(
+            finding.get("evidence")
+            or finding.get("evidence_id")
+            or finding.get("evidence_hash")
+            or finding.get("poc")
+        )
+        if require_evidence and not has_proof:
+            return None
+
         title = finding.get("title", "").lower()
         desc = finding.get("description", "").lower()
         finding_id = finding.get("id", "")
@@ -94,12 +122,9 @@ class AttackPathEngine:
                 matched = entry
                 break
 
+        # Reject speculative fallback if no specific technique matches evidence
         if not matched:
-            matched = {
-                "technique_id": "T1190",
-                "technique_name": "Exploit Public-Facing Application",
-                "tactic": "Initial Access",
-            }
+            return None
 
         return MITREMapping(
             technique_id=matched["technique_id"],
@@ -107,8 +132,15 @@ class AttackPathEngine:
             tactic=matched["tactic"],
             finding_id=finding_id,
             asset_id=asset_id,
-            confidence=0.92,
+            confidence=0.95 if has_proof else 0.75,
         )
+
+    def map_finding_to_mitre(self, finding: Dict[str, Any]) -> Optional[MITREMapping]:
+        """
+        Phase 6 strict evidence-grounded MITRE mapping.
+        Rejects mappings for HYPOTHESIS, KILLED, BLOCKED, or findings lacking technical proof.
+        """
+        return self.map_mitre(finding, require_evidence=True)
 
     def generate_attack_path_graph(
         self,

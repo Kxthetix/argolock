@@ -343,6 +343,8 @@ class RetestRecord(BaseModel):
     retest_status: RetestStatus = RetestStatus.PENDING
     original_evidence_hash: str
     new_evidence_hash: Optional[str] = None
+    original_test_method: str = "validation_engine"
+    verified_risk_reduction: float = 0.0 # Only updated from verified retest with RetestStatus.RESOLVED
     comparison_summary: str = ""
     executed_by: str
     started_at: datetime = Field(default_factory=utc_now)

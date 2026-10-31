@@ -16,7 +16,7 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-# ─── 1. No-Fake-Data Source Classification ───────────────────────────────────────
+# ─── 1. No-Fake-Data Source Classification & Figure Provenance ────────────────────
 
 class SourceType(str, Enum):
     REAL = "REAL"                     # Verified physical target / infrastructure
@@ -24,6 +24,20 @@ class SourceType(str, Enum):
     INFERRED = "INFERRED"             # Deterministic derivation from observed data
     HYPOTHESIS = "HYPOTHESIS"         # AI or heuristic generated proposition awaiting testing
     EXTERNAL_INTEL = "EXTERNAL_INTEL" # CVE, NVD, KEV, MITRE ATT&CK reference data
+
+
+class FigureOrigin(str, Enum):
+    OBSERVED = "OBSERVED"   # Directly measured from scan telemetry or tool output
+    ASSUMED = "ASSUMED"     # User-supplied or standard industry baseline parameter
+    MODELED = "MODELED"     # Mathematically calculated by statistical or risk algorithm
+
+
+class ProvenanceFigure(BaseModel):
+    value: Any
+    origin: FigureOrigin
+    source: str
+    unit: Optional[str] = None
+    notes: Optional[str] = None
 
 
 # ─── 2. Finding Lifecycle State Machine ──────────────────────────────────────────
@@ -146,6 +160,7 @@ class AttackChain(BaseModel):
 
 class CyberRiskScore(BaseModel):
     scan_id: str
+    risk_model_version: str = "2.0.0"   # Versioned explainable risk model
     score: float = Field(0.0, description="Calibrated score 0-100")
     rating: str = "Low"                 # CRITICAL, HIGH, MEDIUM, LOW, INFORMATIONAL
     severity_factor: float = 0.0        # 0.0 - 10.0
@@ -155,6 +170,10 @@ class CyberRiskScore(BaseModel):
     business_impact_factor: float = 1.0 # 0.5 - 2.0
     threat_relevance_factor: float = 1.0# 0.5 - 1.5
     confidence_factor: float = 1.0      # 0.0 - 1.0
+    controls_discount: float = 0.0      # 0.0 - 0.4 discount for validated compensating controls
+    inputs: Dict[str, ProvenanceFigure] = Field(default_factory=dict) # Stored explicit inputs with provenance
+    uncertainty_range: Dict[str, Any] = Field(default_factory=dict) # min_score, expected_score, max_score, confidence_interval
+    loss_exposure: Dict[str, Any] = Field(default_factory=dict) # min_usd, expected_usd, max_usd, hourly_downtime_cost_usd, assumptions
     calculation_breakdown: Dict[str, Any] = Field(default_factory=dict)
     calculated_at: str = Field(default_factory=utc_now_iso)
 
@@ -175,12 +194,17 @@ class RemediationActionItem(BaseModel):
     recommended_control: str
     estimated_cost: str = "Medium"      # Low, Medium, High
     cost_index: float = 2.0             # Numeric index for calculation (1.0=Low, 2.0=Med, 3.5=High)
-    risk_reduction_points: float = 15.0 # How many risk points removed
+    user_hourly_rate: float = 120.0     # User-supplied engineer hourly rate (USD)
+    effort_hours: int = 8               # Expected effort hours
+    effort_range: Dict[str, int] = Field(default_factory=dict) # min_hours, expected_hours, max_hours
+    cost_range: Dict[str, float] = Field(default_factory=dict) # min_cost_usd, expected_cost_usd, max_cost_usd
+    risk_reduction_points: float = 15.0 # Expected risk points removed
+    risk_reduction_range: Dict[str, float] = Field(default_factory=dict) # min_points, expected_points, max_points
     residual_risk_points: float = 5.0
     roi_score: float = 7.5              # risk_reduction_points / cost_index
     priority: RemediationPriority = RemediationPriority.P2
-    effort_hours: int = 8
     compliance_mappings: List[str] = Field(default_factory=list) # OWASP, ISO27001, SOC2
+    figure_provenance: Dict[str, FigureOrigin] = Field(default_factory=dict)
 
 
 class InvestmentOptimizationPlan(BaseModel):
@@ -188,11 +212,68 @@ class InvestmentOptimizationPlan(BaseModel):
     initial_risk_score: float
     projected_residual_risk: float
     total_risk_reduction: float
+    user_hourly_rate: float = 120.0
+    total_effort_range: Dict[str, int] = Field(default_factory=dict) # min_hours, expected_hours, max_hours
+    total_cost_range: Dict[str, float] = Field(default_factory=dict) # min_usd, expected_usd, max_usd
+    modeled_loss_reduction_range: Dict[str, float] = Field(default_factory=dict) # min_usd, expected_usd, max_usd
+    assumptions: List[str] = Field(default_factory=list)
+    savings_claim_notice: str = "No direct financial savings claimed. Figures represent modeled reduction in technical risk points and potential loss exposure."
     actions: List[RemediationActionItem] = Field(default_factory=list)
     generated_at: str = Field(default_factory=utc_now_iso)
 
 
-# ─── 7. Mission Modes & Mission Controller ──────────────────────────────────────
+# ─── 7. Remediation Tasks & Retests ──────────────────────────────────────────────
+
+class RemediationTaskStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    READY_FOR_RETEST = "ready_for_retest"
+    RESOLVED = "resolved"
+    REOPENED = "reopened"
+
+
+class RemediationTask(BaseModel):
+    id: str = Field(default_factory=lambda: f"task-{uuid.uuid4().hex[:8]}")
+    finding_id: str
+    scan_id: str
+    title: str
+    description: str
+    status: RemediationTaskStatus = RemediationTaskStatus.PENDING
+    assignee: Optional[str] = None
+    priority: RemediationPriority = RemediationPriority.P2
+    sla_deadline: Optional[str] = None
+    user_hourly_rate: float = 120.0
+    estimated_hours_range: Dict[str, int] = Field(default_factory=dict) # min, expected, max
+    estimated_cost_range: Dict[str, float] = Field(default_factory=dict) # min, expected, max
+    original_test_method: str = "validation_engine"
+    retest_ids: List[str] = Field(default_factory=list)
+    verified_risk_reduction: float = 0.0 # Only updated from verified retest with RetestStatus.RESOLVED
+    created_at: str = Field(default_factory=utc_now_iso)
+    updated_at: str = Field(default_factory=utc_now_iso)
+
+
+# ─── 8. Assessment Trends & Historical Posture ──────────────────────────────────
+
+class AssessmentTrendPoint(BaseModel):
+    scan_id: str
+    timestamp: str
+    risk_score: float
+    severity_counts: Dict[str, int] = Field(default_factory=dict)
+    verified_remediations_count: int = 0
+    new_findings_count: int = 0
+    total_findings_count: int = 0
+
+
+class AssessmentTrendView(BaseModel):
+    target: str
+    history_points: List[AssessmentTrendPoint] = Field(default_factory=list)
+    mttr_hours_average: Optional[float] = None # Mean Time to Remediate in hours
+    total_verified_risk_reduction: float = 0.0
+    posture_trend_direction: str = "stable" # "improving", "deteriorating", "stable"
+    data_provenance: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ─── 9. Mission Modes & Mission Controller ──────────────────────────────────────
 
 class MissionMode(str, Enum):
     DISCOVERY = "DISCOVERY"             # Asset discovery, service mapping

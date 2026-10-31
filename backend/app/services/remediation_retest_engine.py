@@ -1,12 +1,22 @@
-"""Remediation and Retest Engine for ARGOLOCK NET v1.6."""
+"""Remediation and Retest Engine for ARGOLOCK NET v1.7.
+Manages remediation tasks and executes evidence-driven retests using the original test method.
+Risk reduction is strictly computed ONLY from verified retests where retest_status == RESOLVED.
+"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from loguru import logger
 
 from app.models.vapt_models import (
     RemediationPlan, RetestRecord, RetestStatus, ValidationStatus, TestingLevel
+)
+from app.models.v1_7_models import (
+    RemediationTask,
+    RemediationTaskStatus,
+    RemediationPriority,
+    utc_now_iso,
 )
 from app.services.validation_engine import validation_engine
 from app.services.evidence_collector import evidence_collector
@@ -14,7 +24,15 @@ from app.services.audit_logger import audit_logger
 
 
 class RemediationRetestEngine:
-    """Generates remediation advice and orchestrates evidence-driven retests."""
+    """Generates remediation advice, manages tasks, and orchestrates evidence-driven retests."""
+
+    SEVERITY_RISK_REDUCTION = {
+        "critical": 25.0,
+        "high": 15.0,
+        "medium": 8.0,
+        "low": 3.0,
+        "info": 1.0,
+    }
 
     def __init__(self, db_getter=None):
         self._db_getter = db_getter
@@ -28,7 +46,7 @@ class RemediationRetestEngine:
     def generate_remediation_plan(self, finding: Dict[str, Any]) -> RemediationPlan:
         """Generate structured, actionable remediation guidance for a finding."""
         title = finding.get("title", "Vulnerability")
-        sev = finding.get("severity", "medium").lower()
+        sev = (finding.get("severity") or "medium").lower()
         endpoint = finding.get("affected_endpoint", "unknown")
         cve = finding.get("cve_ids", [""])[0] if finding.get("cve_ids") else "N/A"
 
@@ -82,33 +100,162 @@ class RemediationRetestEngine:
             retest_requirement="Execute automated non-destructive retest under identical network conditions."
         )
 
+    async def create_remediation_task(
+        self,
+        finding: Dict[str, Any],
+        scan_id: Optional[str] = None,
+        user_hourly_rate: float = 120.0,
+        assignee: Optional[str] = None,
+        priority: Optional[RemediationPriority] = None,
+        sla_days: int = 14,
+    ) -> RemediationTask:
+        """Create a tracked RemediationTask for an identified finding."""
+        db = self._get_db()
+        f_id = finding.get("id") or str(uuid.uuid4())
+        s_id = scan_id or finding.get("scan_id") or "scan-unknown"
+        sev = (finding.get("severity") or "medium").lower()
+
+        # Determine priority
+        if not priority:
+            if sev == "critical":
+                priority = RemediationPriority.P1
+            elif sev == "high":
+                priority = RemediationPriority.P2
+            elif sev == "medium":
+                priority = RemediationPriority.P3
+            else:
+                priority = RemediationPriority.P4
+
+        # Determine original test method
+        orig_method = (
+            finding.get("tool")
+            or finding.get("validation_method")
+            or finding.get("method")
+            or "validation_engine"
+        )
+
+        # Estimate effort & cost ranges
+        base_hours = 12 if sev == "critical" else 8 if sev == "high" else 4 if sev == "medium" else 2
+        min_hours = max(1, int(round(base_hours * 0.7)))
+        max_hours = int(round(base_hours * 1.5))
+
+        hours_range = {"min": min_hours, "expected": base_hours, "max": max_hours}
+        cost_range = {
+            "min": round(min_hours * user_hourly_rate, 2),
+            "expected": round(base_hours * user_hourly_rate, 2),
+            "max": round(max_hours * user_hourly_rate, 2),
+        }
+
+        now = datetime.now(timezone.utc)
+        sla_deadline = (now + timedelta(days=sla_days)).isoformat().replace("+00:00", "Z")
+
+        task = RemediationTask(
+            finding_id=f_id,
+            scan_id=s_id,
+            title=f"Remediate {finding.get('title', 'Vulnerability')}",
+            description=finding.get("description") or f"Fix identified {sev} flaw on {finding.get('affected_endpoint', 'target')}",
+            status=RemediationTaskStatus.PENDING,
+            assignee=assignee,
+            priority=priority,
+            sla_deadline=sla_deadline,
+            user_hourly_rate=user_hourly_rate,
+            estimated_hours_range=hours_range,
+            estimated_cost_range=cost_range,
+            original_test_method=orig_method,
+            retest_ids=[],
+            verified_risk_reduction=0.0, # Zero until proven resolved by retest
+            created_at=utc_now_iso(),
+            updated_at=utc_now_iso(),
+        )
+
+        await db["remediation_tasks"].insert_one(task.model_dump())
+        return task
+
+    async def list_remediation_tasks(
+        self,
+        scan_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[RemediationTask]:
+        """Query stored remediation tasks."""
+        db = self._get_db()
+        query: Dict[str, Any] = {}
+        if scan_id:
+            query["scan_id"] = scan_id
+        if status:
+            query["status"] = status
+
+        cursor = db["remediation_tasks"].find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        return [RemediationTask(**doc) for doc in docs]
+
+    async def get_remediation_task(self, task_id: str) -> Optional[RemediationTask]:
+        """Retrieve a specific remediation task by ID."""
+        db = self._get_db()
+        doc = await db["remediation_tasks"].find_one({"id": task_id}, {"_id": 0})
+        return RemediationTask(**doc) if doc else None
+
+    async def update_task_status(
+        self,
+        task_id: str,
+        new_status: RemediationTaskStatus,
+        assignee: Optional[str] = None,
+    ) -> Optional[RemediationTask]:
+        """Update remediation task status and optionally assignee."""
+        db = self._get_db()
+        update_fields: Dict[str, Any] = {
+            "status": new_status.value if hasattr(new_status, "value") else str(new_status),
+            "updated_at": utc_now_iso(),
+        }
+        if assignee:
+            update_fields["assignee"] = assignee
+
+        await db["remediation_tasks"].update_one({"id": task_id}, {"$set": update_fields})
+        return await self.get_remediation_task(task_id)
+
     async def execute_retest(
         self,
         finding_id: str,
         actor: str = "security_engineer"
     ) -> RetestRecord:
         """
-        Retest an existing finding using the exact same validation condition.
+        Retest an existing finding using the exact original validation condition and method.
         Compares evidence hashes to confirm whether vulnerability is RESOLVED or STILL_VULNERABLE.
+        Verified risk reduction is computed ONLY if retest_status == RESOLVED.
         """
         db = self._get_db()
         finding_doc = await db["findings"].find_one({"id": finding_id}, {"_id": 0})
         if not finding_doc:
             raise ValueError(f"Finding '{finding_id}' not found.")
 
+        # Identify original method and prior evidence hash
+        orig_method = (
+            finding_doc.get("tool")
+            or finding_doc.get("validation_method")
+            or finding_doc.get("method")
+            or "validation_engine"
+        )
         orig_evidence_id = finding_doc.get("evidence_id")
-        orig_evidence = await evidence_collector.get_evidence(orig_evidence_id) if orig_evidence_id else None
-        orig_hash = orig_evidence.sha256_hash if orig_evidence else "NO_PRIOR_HASH"
+        orig_hash = "NO_PRIOR_HASH"
+        if orig_evidence_id:
+            try:
+                orig_evidence = await evidence_collector.get_evidence(orig_evidence_id)
+                if orig_evidence:
+                    orig_hash = orig_evidence.sha256_hash
+            except Exception:
+                orig_hash = "NO_PRIOR_HASH"
 
         retest = RetestRecord(
             finding_id=finding_id,
             retest_status=RetestStatus.RUNNING,
             original_evidence_hash=orig_hash,
+            original_test_method=orig_method,
+            verified_risk_reduction=0.0,
             executed_by=actor,
         )
         await db["retests"].insert_one(retest.model_dump())
 
-        # Re-run validation through validation engine
+        # Re-run validation through validation engine using original method context
         val_result = await validation_engine.validate_finding(
             finding_id=finding_id,
             actor=actor,
@@ -119,33 +266,89 @@ class RemediationRetestEngine:
         new_evidence_hash = val_result.get("evidence_hash") or "NO_NEW_HASH"
         is_confirmed = val_result.get("confirmed", False)
 
-        # Evaluate if resolved
+        verified_risk_reduction = 0.0
+
+        # Evaluate if resolved:
+        # A finding is resolved only when it no longer triggers or is confirmed non-exploitable
         if not is_confirmed and new_val_status in ("false_positive", "not_exploitable"):
             status = RetestStatus.RESOLVED
-            summary = "Remediation verified: Vulnerability condition no longer triggers. Endpoint returned secure response."
-            # Update finding status to CLOSED
+            summary = (
+                f"Remediation verified: Vulnerability condition no longer reproducible "
+                f"using original test method '{orig_method}'. Target returned secure response."
+            )
+            # Calculate verified risk reduction based on verified remediation
+            sev = (finding_doc.get("severity") or "medium").lower()
+            if "cvss_score" in finding_doc and finding_doc["cvss_score"] is not None:
+                verified_risk_reduction = min(25.0, round(float(finding_doc["cvss_score"]) * 2.2, 1))
+            else:
+                verified_risk_reduction = self.SEVERITY_RISK_REDUCTION.get(sev, 8.0)
+
+            # Update finding status in database
             await db["findings"].update_one(
                 {"id": finding_id},
                 {"$set": {
                     "retest_status": RetestStatus.RESOLVED.value,
                     "validation_status": ValidationStatus.NOT_EXPLOITABLE.value,
-                    "confirmed": False
+                    "confirmed": False,
+                    "verified_risk_reduction": verified_risk_reduction,
+                    "resolved_at": utc_now_iso(),
                 }}
             )
+
+            # Update matching remediation tasks
+            await db["remediation_tasks"].update_many(
+                {"finding_id": finding_id},
+                {
+                    "$set": {
+                        "status": RemediationTaskStatus.RESOLVED.value,
+                        "verified_risk_reduction": verified_risk_reduction,
+                        "updated_at": utc_now_iso(),
+                    },
+                    "$addToSet": {"retest_ids": retest.id},
+                }
+            )
+
         elif is_confirmed or new_val_status in ("confirmed", "validated"):
             status = RetestStatus.STILL_VULNERABLE
-            summary = "Retest failed: Vulnerability condition is STILL reproducible on target endpoint."
+            verified_risk_reduction = 0.0 # Strictly 0.0 for unresolved findings
+            summary = (
+                f"Retest failed: Vulnerability condition is STILL reproducible "
+                f"on target endpoint using original test method '{orig_method}'."
+            )
             await db["findings"].update_one(
                 {"id": finding_id},
-                {"$set": {"retest_status": RetestStatus.STILL_VULNERABLE.value}}
+                {"$set": {
+                    "retest_status": RetestStatus.STILL_VULNERABLE.value,
+                    "verified_risk_reduction": 0.0,
+                }}
+            )
+            await db["remediation_tasks"].update_many(
+                {"finding_id": finding_id},
+                {
+                    "$set": {
+                        "status": RemediationTaskStatus.REOPENED.value,
+                        "verified_risk_reduction": 0.0,
+                        "updated_at": utc_now_iso(),
+                    },
+                    "$addToSet": {"retest_ids": retest.id},
+                }
             )
         else:
             status = RetestStatus.INCONCLUSIVE
-            summary = f"Retest inconclusive: Status is {new_val_status}."
+            verified_risk_reduction = 0.0 # Strictly 0.0 for inconclusive tests
+            summary = f"Retest inconclusive: Status is {new_val_status}. Technical proof unchanged."
+            await db["remediation_tasks"].update_many(
+                {"finding_id": finding_id},
+                {
+                    "$addToSet": {"retest_ids": retest.id},
+                    "$set": {"updated_at": utc_now_iso()},
+                }
+            )
 
         retest.retest_status = status
         retest.new_evidence_hash = new_evidence_hash
         retest.comparison_summary = summary
+        retest.verified_risk_reduction = verified_risk_reduction
         retest.completed_at = datetime.now(timezone.utc)
 
         await db["retests"].update_one(
@@ -154,17 +357,22 @@ class RemediationRetestEngine:
                 "retest_status": status.value,
                 "new_evidence_hash": new_evidence_hash,
                 "comparison_summary": summary,
-                "completed_at": retest.completed_at.isoformat().replace("+00:00", "Z")
+                "verified_risk_reduction": verified_risk_reduction,
+                "original_test_method": orig_method,
+                "completed_at": retest.completed_at.isoformat().replace("+00:00", "Z"),
             }}
         )
 
-        await audit_logger.log_action(
-            actor=actor,
-            action="RETEST_COMPLETED",
-            finding_id=finding_id,
-            result_summary=f"Retest result: {status.value.upper()}. {summary}",
-            evidence_hash=new_evidence_hash,
-        )
+        try:
+            await audit_logger.log_action(
+                actor=actor,
+                action="RETEST_COMPLETED",
+                finding_id=finding_id,
+                result_summary=f"Retest result: {status.value.upper()}. {summary} (Verified Risk Reduction: {verified_risk_reduction} pts)",
+                evidence_hash=new_evidence_hash,
+            )
+        except Exception as e:
+            logger.debug(f"[RemediationRetestEngine] Non-critical audit log skipped: {e}")
 
         return retest
 

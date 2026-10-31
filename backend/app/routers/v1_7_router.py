@@ -1,7 +1,8 @@
 """
 ARGOLOCK V1.7 Core REST API Router (/api/v1)
 Exposes Mission Controller, 60-Agent Operations, Capability Graphs,
-Adversarial Validation, Cyber Risk Quantification, and Investment Optimization.
+Adversarial Validation, Cyber Risk Quantification, Investment Optimization,
+Remediation Tasks & Retests, Assessment Trends, and Executive Business Questions.
 """
 from __future__ import annotations
 
@@ -10,13 +11,23 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.database import get_db
-from app.models.v1_7_models import Mission, MissionMode, utc_now_iso
+from app.models.v1_7_models import (
+    Mission,
+    MissionMode,
+    RemediationPriority,
+    RemediationTask,
+    RemediationTaskStatus,
+    utc_now_iso,
+)
 from app.services.adversarial_validator import AdversarialValidator
 from app.services.agent_registry import AgentRegistry
 from app.services.capability_graph_service import CapabilityGraphService
 from app.services.cyber_risk_service import CyberRiskEngine
 from app.services.investment_optimizer_service import InvestmentOptimizer
 from app.services.security_control_plane import SecurityControlPlane
+from app.services.remediation_retest_engine import remediation_retest_engine
+from app.services.trend_service import trend_service
+from app.services.business_questions_service import business_questions_service
 
 router = APIRouter(prefix="/api/v1", tags=["v1.7"])
 
@@ -35,13 +46,27 @@ class KillSwitchRequest(BaseModel):
     activate: bool = True
 
 
+class CreateRemediationTaskRequest(BaseModel):
+    finding_id: str
+    scan_id: Optional[str] = None
+    user_hourly_rate: float = 120.0
+    assignee: Optional[str] = None
+    priority: Optional[RemediationPriority] = None
+    sla_days: int = 14
+
+
+class UpdateRemediationTaskRequest(BaseModel):
+    status: Optional[RemediationTaskStatus] = None
+    assignee: Optional[str] = None
+
+
 # ─── 1. Mission Controller ──────────────────────────────────────────────────────
 
 @router.post("/missions", response_model=Mission)
 async def create_mission(req: CreateMissionRequest):
     """Launch a new VAPT mission in Discovery, Assessment, Validation, or Continuous mode."""
     db = get_db()
-    
+
     # Scope gate pre-check
     whitelist = req.scope_whitelist or [req.target]
     gate_res = SecurityControlPlane.evaluate_scope_gate(
@@ -65,7 +90,7 @@ async def create_mission(req: CreateMissionRequest):
         progress_percent=15,
         active_agent_count=7 if req.mode == MissionMode.ASSESSMENT else 3,
     )
-    
+
     doc = mission.model_dump()
     await db["v1_7_missions"].insert_one(doc)
     return mission
@@ -123,14 +148,6 @@ async def get_capability_graph(scan_id: str):
     cursor = db["findings"].find({"scan_id": scan_id}, {"_id": 0}).limit(50)
     findings = await cursor.to_list(length=50)
 
-    # Fallback to simulated findings if scan has no findings yet
-    if not findings:
-        findings = [
-            {"id": f"f-{scan_id[:4]}-1", "title": "Missing DMARC DNS Record", "severity": "medium", "cvss_score": 5.5, "affected_endpoint": target},
-            {"id": f"f-{scan_id[:4]}-2", "title": "Insecure Direct Object Reference (IDOR)", "severity": "high", "cvss_score": 7.5, "affected_endpoint": f"{target}/api/v1/profile"},
-            {"id": f"f-{scan_id[:4]}-3", "title": "SQL Injection in Search Query", "severity": "critical", "cvss_score": 9.2, "affected_endpoint": f"{target}/search?q=test"},
-        ]
-
     graph = CapabilityGraphService.generate_graph(scan_id=scan_id, findings=findings, target=target)
     return graph
 
@@ -151,53 +168,213 @@ async def get_scan_cyber_risk(
     scan_id: str,
     asset_criticality: float = 1.2,
     exposure: float = 1.3,
+    hourly_downtime_cost_usd: float = 5000.0,
+    controls_discount: float = 0.0,
 ):
-    """Calculate multi-variable Cyber Risk Quantification score for a scan."""
+    """Calculate versioned, explainable Cyber Risk score (v2.0.0) with stored provenance."""
     db = get_db()
     cursor = db["findings"].find({"scan_id": scan_id}, {"_id": 0}).limit(100)
     findings = await cursor.to_list(length=100)
-
-    if not findings:
-        findings = [
-            {"id": "demo-1", "title": "Missing DMARC Record", "severity": "medium", "cvss_score": 5.5, "confirmed": True},
-            {"id": "demo-2", "title": "IDOR in User API", "severity": "high", "cvss_score": 7.5, "confirmed": True},
-        ]
 
     risk_score = CyberRiskEngine.calculate_scan_risk(
         scan_id=scan_id,
         findings=findings,
         asset_criticality=asset_criticality,
         exposure_factor=exposure,
+        existing_controls_discount=controls_discount,
+        hourly_downtime_cost_usd=hourly_downtime_cost_usd,
     )
     return risk_score.model_dump()
 
 
-# ─── 6. Investment Optimization (Remediation ROI) ───────────────────────────────
+# ─── 6. Investment Optimization (Remediation Prioritization) ───────────────────
 
 @router.get("/investment/{scan_id}")
-async def get_investment_plan(scan_id: str):
-    """Generate Remediation ROI & Budget Investment Optimization plan (P1 to P4)."""
+async def get_investment_plan(
+    scan_id: str,
+    user_hourly_rate: float = 120.0,
+    hourly_downtime_cost_usd: float = 5000.0,
+):
+    """Generate Remediation Prioritization plan with user-supplied rates, uncertainty intervals, and zero savings claims."""
     db = get_db()
     cursor = db["findings"].find({"scan_id": scan_id}, {"_id": 0}).limit(100)
     findings = await cursor.to_list(length=100)
-
-    if not findings:
-        findings = [
-            {"id": "demo-1", "title": "Missing DMARC Record", "severity": "medium"},
-            {"id": "demo-2", "title": "Insecure Direct Object Reference (IDOR)", "severity": "high"},
-            {"id": "demo-3", "title": "SQL Injection in User Search", "severity": "critical"},
-        ]
 
     risk = CyberRiskEngine.calculate_scan_risk(scan_id=scan_id, findings=findings)
     plan = InvestmentOptimizer.generate_plan(
         scan_id=scan_id,
         initial_risk_score=risk.score,
         findings=findings,
+        user_hourly_rate=user_hourly_rate,
+        hourly_downtime_cost_usd=hourly_downtime_cost_usd,
     )
     return plan.model_dump()
 
 
-# ─── 7. Security Control Plane ──────────────────────────────────────────────────
+# ─── 7. Remediation Tasks & Retests ──────────────────────────────────────────────
+
+@router.post("/remediation-tasks", response_model=RemediationTask)
+async def create_remediation_task(req: CreateRemediationTaskRequest):
+    """Create a tracked Remediation Task from an identified finding."""
+    db = get_db()
+    finding = await db["findings"].find_one({"id": req.finding_id}, {"_id": 0})
+    if not finding:
+        raise HTTPException(status_code=404, detail=f"Finding '{req.finding_id}' not found.")
+
+    task = await remediation_retest_engine.create_remediation_task(
+        finding=finding,
+        scan_id=req.scan_id or finding.get("scan_id"),
+        user_hourly_rate=req.user_hourly_rate,
+        assignee=req.assignee,
+        priority=req.priority,
+        sla_days=req.sla_days,
+    )
+    return task
+
+
+@router.get("/remediation-tasks")
+async def list_remediation_tasks(
+    scan_id: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+):
+    """List all tracked remediation tasks."""
+    tasks = await remediation_retest_engine.list_remediation_tasks(
+        scan_id=scan_id,
+        status=status,
+        limit=limit,
+    )
+    return [t.model_dump() for t in tasks]
+
+
+@router.get("/remediation-tasks/{task_id}")
+async def get_remediation_task(task_id: str):
+    """Get remediation task details."""
+    task = await remediation_retest_engine.get_remediation_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Remediation task not found.")
+    return task.model_dump()
+
+
+@router.patch("/remediation-tasks/{task_id}")
+async def update_remediation_task(task_id: str, req: UpdateRemediationTaskRequest):
+    """Update status or assignee on a remediation task."""
+    task = await remediation_retest_engine.get_remediation_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Remediation task not found.")
+
+    updated = await remediation_retest_engine.update_task_status(
+        task_id=task_id,
+        new_status=req.status or task.status,
+        assignee=req.assignee,
+    )
+    return updated.model_dump() if updated else None
+
+
+@router.post("/remediation-tasks/{task_id}/retest")
+async def retest_remediation_task(task_id: str, actor: str = "security_engineer"):
+    """Trigger an automated retest for a task's finding using the original test method."""
+    task = await remediation_retest_engine.get_remediation_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Remediation task not found.")
+
+    retest_record = await remediation_retest_engine.execute_retest(
+        finding_id=task.finding_id,
+        actor=actor,
+    )
+    refreshed_task = await remediation_retest_engine.get_remediation_task(task_id)
+    return {
+        "retest": retest_record.model_dump(),
+        "task": refreshed_task.model_dump() if refreshed_task else None,
+    }
+
+
+# ─── 8. Assessment Trends ────────────────────────────────────────────────────────
+
+@router.get("/trends/{target}")
+async def get_assessment_trends(target: str, limit: int = 10):
+    """Return historical risk posture trend, MTTR, and verified risk reduction for a target."""
+    view = await trend_service.get_target_trend_view(target=target, limit=limit)
+    return view.model_dump()
+
+
+# ─── 9. Executive Business Questions ────────────────────────────────────────────
+
+@router.get("/business-questions/{scan_id}")
+async def answer_all_business_questions(
+    scan_id: str,
+    target: Optional[str] = None,
+    user_hourly_rate: float = 120.0,
+    hourly_downtime_cost_usd: float = 5000.0,
+):
+    """Answer all four master doc executive business questions from stored telemetry."""
+    q1 = await business_questions_service.answer_question_1_current_risk(
+        scan_id=scan_id,
+        hourly_downtime_cost_usd=hourly_downtime_cost_usd,
+    )
+    q2 = await business_questions_service.answer_question_2_critical_attack_paths(
+        scan_id=scan_id,
+        target=target,
+    )
+    q3 = await business_questions_service.answer_question_3_prioritized_investments(
+        scan_id=scan_id,
+        user_hourly_rate=user_hourly_rate,
+        hourly_downtime_cost_usd=hourly_downtime_cost_usd,
+    )
+    q4 = await business_questions_service.answer_question_4_posture_trends(
+        target=target or "*",
+    )
+    return {
+        "scan_id": scan_id,
+        "executive_summary": "ARGOLOCK V1.7 Core Business Decisions Telemetry",
+        "questions": {
+            "Q1_cyber_risk_and_financial_loss": q1,
+            "Q2_critical_findings_and_attack_paths": q2,
+            "Q3_remediation_investments_and_effort": q3,
+            "Q4_posture_trends_and_mttr": q4,
+        },
+    }
+
+
+@router.get("/business-questions/{scan_id}/q1")
+async def answer_q1(scan_id: str, hourly_downtime_cost_usd: float = 5000.0):
+    """Q1: What is our current cyber risk exposure and financial loss range?"""
+    return await business_questions_service.answer_question_1_current_risk(
+        scan_id=scan_id,
+        hourly_downtime_cost_usd=hourly_downtime_cost_usd,
+    )
+
+
+@router.get("/business-questions/{scan_id}/q2")
+async def answer_q2(scan_id: str, target: Optional[str] = None):
+    """Q2: What are our most critical verified vulnerabilities and attack paths to crown jewels?"""
+    return await business_questions_service.answer_question_2_critical_attack_paths(
+        scan_id=scan_id,
+        target=target,
+    )
+
+
+@router.get("/business-questions/{scan_id}/q3")
+async def answer_q3(
+    scan_id: str,
+    user_hourly_rate: float = 120.0,
+    hourly_downtime_cost_usd: float = 5000.0,
+):
+    """Q3: What is our prioritized remediation investment plan with user costs, uncertainty ranges, and no savings claims?"""
+    return await business_questions_service.answer_question_3_prioritized_investments(
+        scan_id=scan_id,
+        user_hourly_rate=user_hourly_rate,
+        hourly_downtime_cost_usd=hourly_downtime_cost_usd,
+    )
+
+
+@router.get("/business-questions/{scan_id}/q4")
+async def answer_q4(scan_id: str, target: str = "*"):
+    """Q4: What is our historical risk posture trend, MTTR, and verified risk reduction over time?"""
+    return await business_questions_service.answer_question_4_posture_trends(target=target)
+
+
+# ─── 10. Security Control Plane ──────────────────────────────────────────────────
 
 @router.post("/security-control-plane/kill-switch")
 async def toggle_kill_switch(req: KillSwitchRequest):
