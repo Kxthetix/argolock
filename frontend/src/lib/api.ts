@@ -326,6 +326,124 @@ export function handleSessionExpired(): void {
   clearAuthSession();
 }
 
+// ── Sequential Tool Cell Pipeline Types ──────────────────────────────────────
+
+export interface ToolCellManifest {
+  tool_id: string;
+  tool_name: string;
+  tool_version: string;
+  adapter_version: string;
+  image_digest: string;
+  risk_class: string;
+  allowed_profiles: string[];
+  target_types: string[];
+  network_egress_policy: Record<string, any>;
+  resource_limits: Record<string, any>;
+  rate_limit_per_second: number;
+  concurrency_limit: number;
+  raw_evidence_policy: Record<string, any>;
+  paired_ai_role: string;
+  paired_ai_profile_version: string;
+}
+
+export interface StageApproval {
+  approval_id: string;
+  stage_key: string;
+  tool_id: string;
+  method_name: string;
+  target_count: number;
+  target_summary: string[];
+  exclusions: string[];
+  rate_ceiling: number;
+  timeout_seconds: number;
+  expected_traffic_class: string;
+  credential_reference?: string;
+  approval_expiry: string;
+  plan_digest: string;
+  is_approved: boolean;
+  approved_by?: string;
+  approved_at?: string;
+  invalidated_reason?: string;
+}
+
+export interface SequentialStageRecord {
+  stage_key: string;
+  stage_name: string;
+  tool_id: string;
+  profile_used: string;
+  status: 'PLANNED' | 'PREFLIGHTED' | 'RUNNING' | 'RAW_CAPTURED' | 'PARSED' | 'NORMALIZED' | 'REVIEWED' | 'HANDOFF_ALLOWED' | 'APPROVAL_REQUIRED' | 'SKIPPED' | 'QUARANTINED' | 'FAILED' | 'CANCELLED' | 'PARTIAL' | 'COMPLETED';
+  started_at?: string;
+  completed_at?: string;
+  duration_seconds?: number;
+  target_count: number;
+  targets_in_scope: string[];
+  raw_artifact_ref?: string;
+  raw_artifact_sha256?: string;
+  normalized_count: number;
+  quarantined_count: number;
+  error_message?: string;
+  coverage_notes?: string;
+  approval_id?: string;
+  input_handoff_ref?: string;
+  output_handoff_ref?: string;
+}
+
+export interface FindingCandidateRecord {
+  id: string;
+  candidate_type: string;
+  asset: string;
+  endpoint: string;
+  rule_or_template_id: string;
+  evidence_summary: string;
+  severity_hint: string;
+  confidence_hint: number;
+  source_refs: string[];
+  raw_ref: string;
+  reproduction_class: string;
+  review_state: 'candidate' | 'confirmed' | 'duplicate' | 'inconclusive' | 'non_applicable' | 'remediated';
+  duplicate_of_id?: string;
+  reviewer_rationale?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  observed_at: string;
+}
+
+export interface SequentialPipelineRun {
+  scan_id: string;
+  target_seed: string;
+  assessment_type: string;
+  scope_version: string;
+  approved_roots: string[];
+  exclusions: string[];
+  status: string;
+  current_stage: string;
+  progress_percent: number;
+  stages: Record<string, SequentialStageRecord>;
+  approvals: Record<string, StageApproval>;
+  approved_target_set?: {
+    set_id: string;
+    asset_id: string;
+    scope_version: string;
+    targets: string[];
+    resolved_ips: string[];
+    allow_decision: string;
+    is_cdn_or_shared: boolean;
+    shared_provider?: string;
+    exclusions_applied: string[];
+  };
+  domain_candidates: any[];
+  service_endpoints: any[];
+  service_fingerprints: any[];
+  web_origins: any[];
+  route_observations: any[];
+  finding_candidates: FindingCandidateRecord[];
+  raw_artifacts: any[];
+  ai_proposals: any[];
+  error?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
 // ── HTTP Client ───────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -526,6 +644,32 @@ export const api = {
       request<any[]>('/vapt/tools/health'),
     getAuditTrail: (limit = 50) =>
       request<any[]>(`/vapt/audit?limit=${limit}`),
+  },
+
+  sequentialPipeline: {
+    manifests: () => request<ToolCellManifest[]>('/sequential-pipeline/manifests'),
+    getManifest: (toolId: string) => request<ToolCellManifest>(`/sequential-pipeline/manifests/${toolId}`),
+    createRun: (data: {
+      scan_id: string;
+      target_seed: string;
+      assessment_type?: string;
+      exclusions?: string[];
+      auto_approve_gated_stages?: boolean;
+      enable_active_zap?: boolean;
+    }) => request<SequentialPipelineRun>('/sequential-pipeline/runs', { method: 'POST', body: JSON.stringify(data) }),
+    getRun: (scanId: string) => request<SequentialPipelineRun>(`/sequential-pipeline/runs/${scanId}`),
+    approveStage: (scanId: string, approvalId: string, notes?: string) =>
+      request<any>(`/sequential-pipeline/runs/${scanId}/approve-stage/${approvalId}`, {
+        method: 'POST',
+        body: JSON.stringify({ approval_id: approvalId, decision_notes: notes }),
+      }),
+    reviewFinding: (scanId: string, findingId: string, reviewState: string, rationale: string, duplicateOfId?: string) =>
+      request<any>(`/sequential-pipeline/runs/${scanId}/review-finding/${findingId}`, {
+        method: 'POST',
+        body: JSON.stringify({ review_state: reviewState, reviewer_rationale: rationale, duplicate_of_id: duplicateOfId }),
+      }),
+    getArtifact: (scanId: string, artifactId: string) =>
+      request<any>(`/sequential-pipeline/runs/${scanId}/artifacts/${artifactId}`),
   },
 
   v17: {

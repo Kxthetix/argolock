@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, Scan, Finding, parseUtcDate } from '../lib/api';
+import { api, Scan, Finding, parseUtcDate, SequentialPipelineRun } from '../lib/api';
 import { ScanProgress } from '../components/ScanProgress';
 import { FindingsTable } from '../components/FindingsTable';
 import { LogStream, LogEntry } from '../components/LogStream';
 import { ScanWebSocket } from '../lib/websocket';
 import { SeverityBadge } from '../components/SeverityBadge';
-import { ArrowLeft, Download, Terminal, Shield, Clock } from 'lucide-react';
+import { SequentialPipelineCanvas } from '../components/SequentialPipelineCanvas';
+import { ArrowLeft, Download, Terminal, Shield, Clock, Layers, Play } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const renderParsedData = (tool: string, parsedData: any) => {
@@ -171,15 +172,23 @@ export function ScanDetailPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'progress' | 'findings' | 'logs'>('progress');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'progress' | 'findings' | 'logs'>('pipeline');
   const [severityFilter, setSeverityFilter] = useState<string>('');
   const [expandedTool, setExpandedTool] = useState<string | null>(null);
+  const [pipelineRun, setPipelineRun] = useState<SequentialPipelineRun | null>(null);
+  const [startingPipeline, setStartingPipeline] = useState(false);
 
   const loadScan = useCallback(async () => {
     if (!id) return;
     try {
       const s = await api.scans.get(id);
       setScan(s);
+
+      // Check for sequential pipeline run
+      try {
+        const pRun = await api.sequentialPipeline.getRun(id);
+        setPipelineRun(pRun);
+      } catch (_) {}
 
       if (s.status === 'completed' || s.finding_count > 0) {
         const f = await api.scans.findings(id, severityFilter || undefined);
@@ -198,6 +207,25 @@ export function ScanDetailPage() {
       setLoading(false);
     }
   }, [id, severityFilter]);
+
+  const handleStartSequentialPipeline = async () => {
+    if (!id || !scan) return;
+    setStartingPipeline(true);
+    try {
+      const newRun = await api.sequentialPipeline.createRun({
+        scan_id: id,
+        target_seed: scan.scope?.target || 'target.com',
+        exclusions: scan.scope?.excluded_paths || [],
+        auto_approve_gated_stages: false,
+      });
+      setPipelineRun(newRun);
+      setActiveTab('pipeline');
+    } catch (err: any) {
+      alert(`Failed to start sequential pipeline: ${err.message || String(err)}`);
+    } finally {
+      setStartingPipeline(false);
+    }
+  };
 
   useEffect(() => {
     loadScan();
@@ -418,7 +446,7 @@ export function ScanDetailPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
-        {(['progress', 'findings', 'logs'] as const).map(tab => (
+        {(['pipeline', 'progress', 'findings', 'logs'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -430,9 +458,10 @@ export function ScanDetailPage() {
               textTransform: 'capitalize',
             }}
           >
+            {tab === 'pipeline' && <Layers size={14} />}
             {tab === 'findings' && <Shield size={14} />}
             {tab === 'logs' && <Terminal size={14} />}
-            {tab}
+            {tab === 'pipeline' ? 'Sequential Pipeline (14 Stages)' : tab}
             {tab === 'findings' && scan.finding_count > 0 && (
               <span className="badge badge-critical" style={{ marginLeft: 4 }}>{scan.finding_count}</span>
             )}
@@ -441,6 +470,30 @@ export function ScanDetailPage() {
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'pipeline' && (
+        <div>
+          {!pipelineRun ? (
+            <div className="card" style={{ padding: 32, textAlign: 'center' }}>
+              <Layers style={{ width: 48, height: 48, margin: '0 auto 16px', color: 'var(--primary-light)' }} />
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Sequential Tool Cell Pipeline</h3>
+              <p style={{ color: 'var(--text-secondary)', maxWidth: 540, margin: '0 auto 20px', fontSize: 13, lineHeight: 1.6 }}>
+                Execute the full 14-stage assessment workflow: passive discovery (Subfinder, Amass), scope resolution gate, bounded port scans (Naabu), service probes (Nmap), HTTP probing (httpx-probe), fingerprinting (WhatWeb), curated templates (Nuclei), passive crawl (ZAP), conditional server checks (Nikto), gated parameter tests (Dalfox), and approved active scans (ZAP).
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={handleStartSequentialPipeline}
+                disabled={startingPipeline}
+              >
+                <Play size={14} style={{ marginRight: 6 }} />
+                {startingPipeline ? 'Initializing Pipeline...' : 'Run 14-Stage Sequential Pipeline'}
+              </button>
+            </div>
+          ) : (
+            <SequentialPipelineCanvas run={pipelineRun} onRefresh={loadScan} />
+          )}
+        </div>
+      )}
+
       {activeTab === 'findings' && (
         <div>
           {/* Severity filter */}
