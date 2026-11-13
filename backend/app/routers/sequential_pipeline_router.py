@@ -26,6 +26,7 @@ from app.services.stage_approval_service import stage_approval_service
 
 
 router = APIRouter(prefix="/api/sequential-pipeline", tags=["Sequential Pipeline"])
+scan_alias_router = APIRouter(prefix="/api/scans", tags=["Sequential Pipeline (Scans Alias)"])
 
 # In-memory store for active sequential runs (synced to DB where available)
 _active_pipeline_runs: Dict[str, SequentialPipelineRun] = {}
@@ -232,3 +233,53 @@ async def get_raw_artifact(
         raise HTTPException(status_code=404, detail=f"Artifact '{artifact_id}' not found.")
 
     return artifact.model_dump()
+
+
+# ─── 6. Scans Prefix Compatibility Aliases ───────────────────────────────────
+
+@scan_alias_router.post("/{scan_id}/sequential-pipeline/runs", status_code=201)
+async def scan_alias_create_run(
+    scan_id: str,
+    request: CreatePipelineRunRequest,
+    current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
+):
+    request.scan_id = scan_id
+    return await create_sequential_pipeline_run(request, current_user)
+
+
+@scan_alias_router.get("/{scan_id}/sequential-pipeline/runs")
+async def scan_alias_get_run(
+    scan_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    return await get_sequential_pipeline_run(scan_id, current_user)
+
+
+@scan_alias_router.post("/{scan_id}/sequential-pipeline/runs/approve-stage/{approval_id}")
+async def scan_alias_approve_stage(
+    scan_id: str,
+    approval_id: str,
+    request: ApproveStageRequest,
+    current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
+):
+    return await approve_stage(scan_id, approval_id, request, current_user)
+
+
+@scan_alias_router.post("/{scan_id}/sequential-pipeline/runs/review-finding/{finding_id}")
+async def scan_alias_review_finding(
+    scan_id: str,
+    finding_id: str,
+    request: FindingReviewRequest,
+    current_user: Dict[str, Any] = Depends(require_role("analyst", "admin")),
+):
+    return await review_candidate_finding(scan_id, finding_id, request, current_user)
+
+
+@scan_alias_router.get("/{scan_id}/sequential-pipeline/runs/artifacts/{artifact_id}")
+async def scan_alias_get_artifact(
+    scan_id: str,
+    artifact_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    return await get_raw_artifact(scan_id, artifact_id, current_user)
+

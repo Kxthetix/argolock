@@ -184,6 +184,7 @@ app.include_router(system.router, prefix="/api/system", tags=["System"])
 app.include_router(vapt_router.router, prefix="/api/vapt", tags=["VAPT Validation"])
 app.include_router(v1_7_router.router)
 app.include_router(sequential_pipeline_router.router)
+app.include_router(sequential_pipeline_router.scan_alias_router)
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 from fastapi import WebSocket, WebSocketDisconnect

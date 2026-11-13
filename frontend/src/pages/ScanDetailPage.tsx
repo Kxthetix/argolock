@@ -177,6 +177,7 @@ export function ScanDetailPage() {
   const [expandedTool, setExpandedTool] = useState<string | null>(null);
   const [pipelineRun, setPipelineRun] = useState<SequentialPipelineRun | null>(null);
   const [startingPipeline, setStartingPipeline] = useState(false);
+  const [pipelineNotice, setPipelineNotice] = useState<{ type: 'error' | 'info'; message: string } | null>(null);
 
   const loadScan = useCallback(async () => {
     if (!id) return;
@@ -187,7 +188,7 @@ export function ScanDetailPage() {
       // Check for sequential pipeline run
       try {
         const pRun = await api.sequentialPipeline.getRun(id);
-        setPipelineRun(pRun);
+        if (pRun) setPipelineRun(pRun);
       } catch (_) {}
 
       if (s.status === 'completed' || s.finding_count > 0) {
@@ -211,6 +212,7 @@ export function ScanDetailPage() {
   const handleStartSequentialPipeline = async () => {
     if (!id || !scan) return;
     setStartingPipeline(true);
+    setPipelineNotice(null);
     try {
       const newRun = await api.sequentialPipeline.createRun({
         scan_id: id,
@@ -221,7 +223,10 @@ export function ScanDetailPage() {
       setPipelineRun(newRun);
       setActiveTab('pipeline');
     } catch (err: any) {
-      alert(`Failed to start sequential pipeline: ${err.message || String(err)}`);
+      setPipelineNotice({
+        type: 'error',
+        message: `Sequential pipeline startup note: ${err.message || String(err)}`,
+      });
     } finally {
       setStartingPipeline(false);
     }
@@ -472,6 +477,28 @@ export function ScanDetailPage() {
       {/* Tab Content */}
       {activeTab === 'pipeline' && (
         <div>
+          {pipelineNotice && (
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: 8,
+              marginBottom: 16,
+              fontSize: 13,
+              background: pipelineNotice.type === 'error' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(99, 102, 241, 0.12)',
+              border: `1px solid ${pipelineNotice.type === 'error' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(99, 102, 241, 0.25)'}`,
+              color: pipelineNotice.type === 'error' ? '#f87171' : '#818cf8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <span>{pipelineNotice.message}</span>
+              <button
+                onClick={() => setPipelineNotice(null)}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16, marginLeft: 12 }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {!pipelineRun ? (
             <div className="card" style={{ padding: 32, textAlign: 'center' }}>
               <Layers style={{ width: 48, height: 48, margin: '0 auto 16px', color: 'var(--primary-light)' }} />

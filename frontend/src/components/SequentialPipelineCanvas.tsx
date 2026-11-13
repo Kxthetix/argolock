@@ -25,6 +25,7 @@ export function SequentialPipelineCanvas({ run, onRefresh, manifests = [] }: Seq
   const [findingFilter, setFindingFilter] = useState<string>('all');
   const [inspectedArtifact, setInspectedArtifact] = useState<any | null>(null);
   const [loadingArtifact, setLoadingArtifact] = useState(false);
+  const [canvasNotice, setCanvasNotice] = useState<{ type: 'error' | 'info' | 'success'; message: string } | null>(null);
 
   if (!run) {
     return (
@@ -60,12 +61,14 @@ export function SequentialPipelineCanvas({ run, onRefresh, manifests = [] }: Seq
 
   const handleApproveStage = async (approvalId: string) => {
     setSubmittingApproval(true);
+    setCanvasNotice(null);
     try {
       await api.sequentialPipeline.approveStage(run.scan_id, approvalId, approvalNotes);
       setApprovalNotes('');
+      setCanvasNotice({ type: 'success', message: 'Stage approved successfully. Advancing pipeline.' });
       onRefresh();
     } catch (err: any) {
-      alert(`Approval failed: ${err.message || String(err)}`);
+      setCanvasNotice({ type: 'error', message: `Approval failed: ${err.message || String(err)}` });
     } finally {
       setSubmittingApproval(false);
     }
@@ -74,10 +77,11 @@ export function SequentialPipelineCanvas({ run, onRefresh, manifests = [] }: Seq
   const handleReviewFinding = async () => {
     if (!reviewingFinding) return;
     if (!reviewerRationale.trim()) {
-      alert('Reviewer rationale is mandatory to record human accountability.');
+      setCanvasNotice({ type: 'error', message: 'Reviewer rationale is mandatory to record human accountability.' });
       return;
     }
     setSubmittingReview(true);
+    setCanvasNotice(null);
     try {
       await api.sequentialPipeline.reviewFinding(
         run.scan_id,
@@ -87,9 +91,10 @@ export function SequentialPipelineCanvas({ run, onRefresh, manifests = [] }: Seq
       );
       setReviewingFinding(null);
       setReviewerRationale('');
+      setCanvasNotice({ type: 'success', message: 'Finding candidate review recorded successfully.' });
       onRefresh();
     } catch (err: any) {
-      alert(`Review failed: ${err.message || String(err)}`);
+      setCanvasNotice({ type: 'error', message: `Review failed: ${err.message || String(err)}` });
     } finally {
       setSubmittingReview(false);
     }
@@ -97,11 +102,12 @@ export function SequentialPipelineCanvas({ run, onRefresh, manifests = [] }: Seq
 
   const handleInspectArtifact = async (artifactId: string) => {
     setLoadingArtifact(true);
+    setCanvasNotice(null);
     try {
       const art = await api.sequentialPipeline.getArtifact(run.scan_id, artifactId);
       setInspectedArtifact(art);
     } catch (err: any) {
-      alert(`Failed to fetch artifact: ${err.message || String(err)}`);
+      setCanvasNotice({ type: 'error', message: `Failed to fetch artifact: ${err.message || String(err)}` });
     } finally {
       setLoadingArtifact(false);
     }
@@ -121,6 +127,41 @@ export function SequentialPipelineCanvas({ run, onRefresh, manifests = [] }: Seq
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* ── Notification Feedback Banner ── */}
+      {canvasNotice && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 8,
+          fontSize: 13,
+          background: canvasNotice.type === 'error'
+            ? 'rgba(239, 68, 68, 0.15)'
+            : canvasNotice.type === 'success'
+            ? 'rgba(34, 197, 94, 0.15)'
+            : 'rgba(99, 102, 241, 0.15)',
+          border: `1px solid ${canvasNotice.type === 'error'
+            ? 'rgba(239, 68, 68, 0.3)'
+            : canvasNotice.type === 'success'
+            ? 'rgba(34, 197, 94, 0.3)'
+            : 'rgba(99, 102, 241, 0.3)'}`,
+          color: canvasNotice.type === 'error'
+            ? '#f87171'
+            : canvasNotice.type === 'success'
+            ? '#4ade80'
+            : '#818cf8',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <span>{canvasNotice.message}</span>
+          <button
+            onClick={() => setCanvasNotice(null)}
+            style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16, marginLeft: 12 }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ── 1. API Coverage Limitation Banner ── */}
       <div style={{
         background: 'rgba(59, 130, 246, 0.08)',
